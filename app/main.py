@@ -111,8 +111,8 @@ def get_user_history(user_id: int):
 
 @app.post("/api/chat")
 def chat_endpoint(request: ChatRequest):
-    from app.compare import chat_with_markanalyst
-    return chat_with_markanalyst([{"role": m.role, "content": m.content} for m in request.messages])
+    from app.compare import chat_with_snaptracker
+    return chat_with_snaptracker([{"role": m.role, "content": m.content} for m in request.messages])
 
 # ✅ NEW: Insights endpoint (needed for frontend dashboard)
 @app.get("/api/insights")

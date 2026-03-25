@@ -22,14 +22,14 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('markanalyst_user');
+    const storedUser = localStorage.getItem('snaptracker_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('markanalyst_user');
+    localStorage.removeItem('snaptracker_user');
     setUser(null);
   };
 
@@ -74,7 +74,7 @@ function AuthPage({ setUser }) {
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Authentication failed');
       
-      localStorage.setItem('markanalyst_user', JSON.stringify(data));
+      localStorage.setItem('snaptracker_user', JSON.stringify(data));
       setUser(data);
     } catch (err) {
       setError(err.message);
@@ -87,7 +87,7 @@ function AuthPage({ setUser }) {
     <div className="min-h-screen flex items-center justify-center bg-black px-4">
       <div className="w-full max-w-md bg-black border border-lime-500/30 p-8 rounded-2xl shadow-[0_0_40px_rgba(132,204,22,0.1)]">
         <div className="text-center mb-8">
-            <h1 className="text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600 mb-2">MarkAnalystAI</h1>
+            <h1 className="text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600 mb-2">SnapTracker</h1>
             <p className="text-neutral-400 font-medium tracking-wide">Enter the Intelligence Matrix</p>
         </div>
         
@@ -163,7 +163,7 @@ function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
 
       <div className="text-center max-w-4xl mx-auto mb-10 animate-slide-down">
         <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl mb-6 text-white drop-shadow-xl">
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600">MarkAnalystAI</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600">SnapTracker</span>
         </h1>
         <p className="text-xl text-neutral-400 max-w-2xl mx-auto font-medium">
           Dominate Your Market with AI Intelligence. <br/> Enter your product pitch and a competitor's URL.
@@ -231,7 +231,7 @@ function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogo
       <div className="w-full md:w-64 bg-black border-b md:border-b-0 md:border-r border-neutral-900 flex flex-col shrink-0 relative z-20">
         <div className="p-6 border-b border-neutral-900 flex items-center justify-between">
           <Link to="/" className="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600 drop-shadow-lg">
-            MarkAnalystAI
+            SnapTracker
           </Link>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto font-semibold tracking-wide">
@@ -413,7 +413,7 @@ function ChatTab({ messages, setMessages }) {
         <div className="bg-black flex-1 rounded-2xl flex flex-col border border-neutral-800 overflow-hidden relative">
             <div className="bg-neutral-900 px-6 py-4 border-b border-neutral-800 flex items-center shadow-sm">
                 <span className="w-2.5 h-2.5 bg-lime-500 rounded-full animate-pulse mr-3"></span>
-                <span className="font-bold text-white tracking-widest uppercase">MarkAnalystAI Assistant</span>
+                <span className="font-bold text-white tracking-widest uppercase">SnapTracker Assistant</span>
             </div>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-black scroll-smooth">
                 {messages.map((msg, idx) => (

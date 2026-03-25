@@ -34,7 +34,7 @@ def analyze_competitor(product_info: str, competitor_url: str):
         competitor_text = "Failed to scrape the competitor's website completely. Use context based on the URL and general knowledge."
     
     prompt = f"""
-You are MarkAnalystAI, an expert SaaS competitive intelligence analyzer.
+You are SnapTracker, an expert SaaS competitive intelligence analyzer.
 A user has provided info about their product:
 {product_info[:1500]}
 
@@ -90,11 +90,11 @@ Return ONLY valid JSON in this format:
                 return {"error": f"Failed to analyze data: {str(e)}"}
             time.sleep(2)
 
-def chat_with_markanalyst(messages: list[dict]):
+def chat_with_snaptracker(messages: list[dict]):
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": "You are MarkAnalystAI, an expert SaaS competitive intelligence analyzer. Answer the user's questions concerning the competitive analysis that was just performed. Be concise and deeply insightful. DO NOT use markdown like ```json, just return raw text for chat."}] + messages[-15:],
+            messages=[{"role": "system", "content": "You are SnapTracker, an expert SaaS competitive intelligence analyzer. Answer the user's questions concerning the competitive analysis that was just performed. Be concise and deeply insightful. DO NOT use markdown like ```json, just return raw text for chat."}] + messages[-15:],
             max_tokens=600,
         )
         return {"response": response.choices[0].message.content.strip()}

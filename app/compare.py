@@ -142,8 +142,15 @@ Return ONLY valid JSON in this exact format:
     {{"from": "[Actual Brand Name] relies on outdated manual integration requiring 10 clicks.", "to": "Your product uses an automated, invisible API sync that saves 5 hours a week."}}
   ],
   "matrix": [
-    {{"name": "Competitor 1 Name", "strength": "Their best feature", "weakness": "Their achilles heel", "similarity": 40}},
-    {{"name": "Competitor 2 Name", "strength": "Their best feature", "weakness": "Their achilles heel", "similarity": 60}}
+    {{
+      "name": "Competitor 1", 
+      "strength": "Strong feature set", 
+      "weakness": "High price", 
+      "similarity": 45,
+      "revenue": "$50M est.",
+      "user_base": "100k users",
+      "review_summary": "Users praise the ease of use on G2, but find the support slow on Capterra."
+    }}
   ]
 }}
 """
@@ -151,10 +158,16 @@ Return ONLY valid JSON in this exact format:
     try:
         result_json = ask_llm([{"role": "user", "content": prompt}], max_tokens=2500)
         data = json.loads(result_json)
-        # Ensure fallback keys
+        # Ensure fallback keys & rounding
         if "matrix" not in data: data["matrix"] = []
         if "similarity" not in data: 
-            data["similarity"] = sum([m.get("similarity", 50) for m in data["matrix"]]) / max(len(data["matrix"]), 1) if data["matrix"] else 50
+            data["similarity"] = round(sum([m.get("similarity", 50) for m in data["matrix"]]) / max(len(data["matrix"]), 1)) if data["matrix"] else 50
+        else:
+            data["similarity"] = round(float(data["similarity"]))
+            
+        if "confidence" in data:
+            data["confidence"] = round(float(data["confidence"]))
+            
         if "insight" not in data: data["insight"] = data.get("aggregate_insight", "")
         
         data["scraped_text"] = combined_competitor_text

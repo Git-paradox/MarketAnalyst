@@ -26,19 +26,24 @@ const InfoTooltip = ({ text }) => (
   </div>
 );
 
-function SimilarityGraph({ matrix }) {
+function DifferentiationGraph({ matrix }) {
    if (!matrix || matrix.length === 0) return null;
    const MAX_HEIGHT = 160; 
    return (
       <div className="flex items-end justify-around space-x-4 h-[250px] mt-8 bg-neutral-900/40 border border-neutral-800 p-6 rounded-2xl w-full relative">
-         <div className="absolute top-5 left-6 text-xs font-bold text-neutral-500 uppercase tracking-widest">Vector Similarity Analysis</div>
-         {matrix.map((comp, idx) => (
-             <div key={idx} className="flex flex-col items-center flex-1 group relative h-full justify-end mt-8">
-                 <div className="text-lime-400 font-bold mb-3 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 text-sm bg-black px-2 py-1 rounded border border-lime-900">{comp.similarity}%</div>
-                 <div className="w-full max-w-[60px] bg-gradient-to-t from-lime-900/30 to-lime-500 rounded-t-sm transition-all shadow-[0_0_15px_rgba(132,204,22,0.1)] group-hover:shadow-[0_0_20px_rgba(132,204,22,0.4)]" style={{ height: `${(comp.similarity / 100) * MAX_HEIGHT}px` }}></div>
-                 <div className="mt-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest truncate w-full text-center border-t border-neutral-800 pt-3">{comp.name}</div>
-             </div>
-         ))}
+         <div className="absolute top-5 left-6 text-xs font-bold text-neutral-500 uppercase tracking-widest flex items-center">
+            Strategic Differentiation Level <InfoTooltip text="Calculated unique variance between your product's positioning and the competitor's market data." />
+         </div>
+         {matrix.map((comp, idx) => {
+             const diff = 100 - Math.round(comp.similarity || 0);
+             return (
+                 <div key={idx} className="flex flex-col items-center flex-1 group relative h-full justify-end mt-8">
+                     <div className="text-lime-400 font-bold mb-3 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 text-sm bg-black px-2 py-1 rounded border border-lime-900 whitespace-nowrap">{diff}% Unique</div>
+                     <div className="w-full max-w-[60px] bg-gradient-to-t from-neutral-800 to-lime-500 rounded-t-sm transition-all shadow-[0_0_15px_rgba(132,204,22,0.1)] group-hover:shadow-[0_0_20px_rgba(132,204,22,0.4)]" style={{ height: `${(diff / 100) * MAX_HEIGHT}px` }}></div>
+                     <div className="mt-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest truncate w-full text-center border-t border-neutral-800 pt-3">{comp.name}</div>
+                 </div>
+             );
+         })}
       </div>
    );
 }
@@ -64,12 +69,17 @@ function App() {
   return (
     <HashRouter>
       <Routes>
+        <Route path="/" element={<MarketingPage user={user} />} />
+        <Route path="/intelligence" element={<IntelligencePage />} />
+        <Route path="/capabilities" element={<CapabilitiesPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        
         <Route path="/auth" element={
-            user ? <Navigate to="/" replace /> : <AuthPage setUser={setUser} />
+            user ? <Navigate to="/analyze" replace /> : <AuthPage setUser={setUser} />
         } />
         
-        <Route path="/" element={
-            !user ? <Navigate to="/auth" replace /> : <LandingPage setAnalysisData={setAnalysisData} setChatMessages={setChatMessages} user={user} handleLogout={handleLogout} />
+        <Route path="/analyze" element={
+            !user ? <Navigate to="/auth" replace /> : <AnalysisPage setAnalysisData={setAnalysisData} setChatMessages={setChatMessages} user={user} handleLogout={handleLogout} />
         } />
         
         <Route path="/dashboard/*" element={
@@ -77,6 +87,137 @@ function App() {
         } />
       </Routes>
     </HashRouter>
+  );
+}
+
+// --- COMMON NAVBAR ---
+function Navbar({ user }) {
+  const navigate = useNavigate();
+  return (
+    <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-neutral-900 px-6 py-4 flex items-center justify-between">
+        <button onClick={() => navigate('/')} className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-lime-500 rounded-lg flex items-center justify-center font-black text-black text-xl">S</div>
+            <span className="text-xl font-bold tracking-tighter text-white">SnapTracker</span>
+        </button>
+        <div className="flex items-center space-x-8">
+            <div className="hidden md:flex space-x-6 text-sm font-semibold text-neutral-400">
+                <button onClick={() => navigate('/intelligence')} className="hover:text-lime-500 transition-colors">Intelligence</button>
+                <button onClick={() => navigate('/capabilities')} className="hover:text-lime-500 transition-colors">Capabilities</button>
+                <button onClick={() => navigate('/pricing')} className="hover:text-lime-500 transition-colors">Pricing</button>
+            </div>
+            {user ? (
+                <button onClick={() => navigate('/analyze')} className="bg-lime-500 text-black px-5 py-2 rounded-full text-sm font-bold hover:bg-lime-400 transition-all shadow-[0_0_20px_rgba(132,204,22,0.3)]">Enter Console</button>
+            ) : (
+                <div className="flex items-center space-x-4">
+                    <button onClick={() => navigate('/auth')} className="text-sm font-bold text-neutral-400 hover:text-white transition-colors">Login</button>
+                    <button onClick={() => navigate('/auth')} className="bg-white text-black px-5 py-2 rounded-full text-sm font-bold hover:bg-lime-500 transition-all">Get Started</button>
+                </div>
+            )}
+        </div>
+    </nav>
+  );
+}
+
+// --- MARKETING PAGE ---
+function MarketingPage({ user }) {
+  const navigate = useNavigate();
+  
+  return (
+    <div className="bg-black min-h-screen text-white font-sans selection:bg-lime-500/30 overflow-x-hidden">
+      <Navbar user={user} />
+
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-lime-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="max-w-6xl mx-auto text-center relative z-10">
+            <div className="inline-flex items-center space-x-2 bg-neutral-900 border border-neutral-800 px-4 py-1.5 rounded-full mb-8 animate-fade-in shadow-xl">
+                <span className="w-2 h-2 bg-lime-500 rounded-full animate-pulse"></span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">v2.4 Competitive Engine Live</span>
+            </div>
+            <h1 className="text-6xl md:text-8xl font-black tracking-tight leading-[0.9] mb-8 bg-clip-text text-transparent bg-gradient-to-b from-white to-neutral-500">
+                MARKET INTELLIGENCE <br/> <span className="text-lime-500">REDEFINED.</span>
+            </h1>
+            <p className="text-xl text-neutral-400 max-w-2xl mx-auto mb-12 leading-relaxed font-medium">
+                Autonomous competitive reconnaissance. We scrape, analyze, and track your market rivals in real-time so you don't have to.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+                <button onClick={() => navigate('/auth')} className="w-full sm:w-auto px-10 py-5 bg-lime-500 text-black font-black text-lg rounded-2xl hover:scale-105 transition-all shadow-[0_0_30px_rgba(132,204,22,0.3)] uppercase tracking-wider">Start Free Recon</button>
+            </div>
+        </div>
+      </section>
+
+      {/* Feature Grid */}
+      <section id="features" className="py-24 px-6 bg-gradient-to-b from-black to-neutral-950">
+        <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {[
+                    { title: "Real-time Scraping", desc: "Our agents crawl competitor sites directly to bypass cached data and extract live features.", icon: "⚡" },
+                    { title: "Sentiment Synthesis", desc: "Automated analysis of G2, Capterra, and Trustpilot reviews to find their hidden weaknesses.", icon: "🧠" },
+                    { title: "Financial Forensics", desc: "Estimated revenue, user base, and market saturation levels for every brand you track.", icon: "📊" },
+                    { title: "Historical Diffing", desc: "Monitor every word they change. We notify you the second they update their pricing or tech.", icon: "👁️" }
+                ].map((feat, i) => (
+                    <div key={i} className="p-8 bg-black border border-neutral-900 rounded-3xl hover:border-lime-500/50 transition-all group overflow-hidden relative">
+                        <div className="absolute -right-4 -top-4 text-6xl opacity-10 group-hover:scale-125 transition-transform">{feat.icon}</div>
+                        <div className="text-3xl mb-6">{feat.icon}</div>
+                        <h3 className="text-xl font-bold mb-3 text-white">{feat.title}</h3>
+                        <p className="text-neutral-500 text-sm leading-relaxed">{feat.desc}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+      </section>
+
+      {/* Why Section */}
+      <section id="about" className="py-24 px-6 border-t border-neutral-900">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <div>
+                <h2 className="text-4xl md:text-5xl font-extrabold leading-tight mb-8">WHY SNAPTRACKER?</h2>
+                <div className="space-y-8">
+                    <div className="flex items-start space-x-6">
+                        <div className="bg-lime-900/20 p-3 rounded-xl border border-lime-900/50 text-lime-500 font-bold">01</div>
+                        <div>
+                            <h4 className="font-bold text-xl mb-2 italic">Ditch the Manual Spreadsheet</h4>
+                            <p className="text-neutral-500">Stop wasting 20 hours a week checking URLs manually. Our AI builds your comparison matrix in 60 seconds.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-start space-x-6">
+                        <div className="bg-lime-900/20 p-3 rounded-xl border border-lime-900/50 text-lime-500 font-bold">02</div>
+                        <div>
+                            <h4 className="font-bold text-xl mb-2 italic">Ruthless Strategic Edge</h4>
+                            <p className="text-neutral-500">We don't just summarize; we find the "Gaps". Learn exactly why their sales are dropping and why yours should rise.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="bg-neutral-900 rounded-[40px] p-8 aspect-square border border-neutral-800 relative overflow-hidden shadow-2xl">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-lime-500/5 to-transparent"></div>
+                {/* Visual Placeholder for a complex vector-style map */}
+                <div className="h-full w-full flex items-center justify-center">
+                    <div className="relative">
+                        <div className="w-64 h-64 border-2 border-lime-500/20 rounded-full flex items-center justify-center animate-spin-slow">
+                            <div className="w-4 h-4 bg-lime-500 rounded-full shadow-[0_0_20px_rgba(132,204,22,0.8)]"></div>
+                        </div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+                            <div className="text-4xl font-black text-white">SNAP</div>
+                            <div className="text-xs font-bold text-neutral-500 tracking-[0.4em] uppercase">Intelligence</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-32 px-6 text-center bg-lime-500 text-black relative z-10 overflow-hidden">
+         <div className="absolute -left-20 -top-20 w-80 h-80 bg-white/20 rounded-full blur-3xl"></div>
+         <h2 className="text-5xl md:text-7xl font-black mb-8 leading-[0.8] tracking-tighter">STOP GUESSING. <br/> START DOMINATING.</h2>
+         <button onClick={() => navigate('/auth')} className="bg-black text-white px-12 py-6 rounded-3xl text-xl font-black hover:scale-105 transition-all shadow-2xl uppercase tracking-widest">Deploy SnapTracker Agent</button>
+      </section>
+
+      <footer className="py-12 px-6 border-t border-neutral-900 text-center">
+        <p className="text-neutral-600 font-bold tracking-widest text-xs uppercase">© 2026 SnapTracker Intelligence Platform. All rights reserved.</p>
+      </footer>
+    </div>
   );
 }
 
@@ -145,8 +286,117 @@ function AuthPage({ setUser }) {
   );
 }
 
-// --- LANDING PAGE ---
-function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
+// --- INTELLIGENCE PAGE ---
+function IntelligencePage({ user }) {
+    const navigate = useNavigate();
+    return (
+        <div className="bg-black min-h-screen text-white font-sans selection:bg-lime-500/30 overflow-x-hidden pt-32 pb-24 px-6">
+            <Navbar user={user} />
+            <div className="max-w-4xl mx-auto">
+                <h1 className="text-5xl md:text-7xl font-black mb-8 leading-[0.9]">MISSION CONTROL <br/><span className="text-lime-500">INTELLIGENCE</span></h1>
+                <p className="text-xl text-neutral-400 mb-12 italic leading-relaxed">Our proprietary Llama-3.3 Powered Recon Engine bypasses traditional static data to fetch live, raw website telemetry.</p>
+                <div className="space-y-12">
+                    <div className="p-8 bg-neutral-900/50 border border-neutral-800 rounded-3xl">
+                        <h2 className="text-2xl font-bold mb-4 text-lime-400 uppercase tracking-widest">01. Autonomous Brand Discovery</h2>
+                        <p className="text-neutral-400">Supply natural language brand names. Our engine resolves specific URLs, clones the Document Object Model (DOM), and synthesizes it into actionable competitor metrics instantaneously.</p>
+                    </div>
+                    <div className="p-8 bg-neutral-900/50 border border-neutral-800 rounded-3xl">
+                        <h2 className="text-2xl font-bold mb-4 text-lime-400 uppercase tracking-widest">02. Vector Correlation</h2>
+                        <p className="text-neutral-400">We analyze the semantic distance between your product pitch and every competitor's landing page. This yields a mathematically precise "Differentiation Index" to reveal your unique market edge.</p>
+                    </div>
+                    <div className="p-8 bg-neutral-900/50 border border-neutral-800 rounded-3xl">
+                        <h2 className="text-2xl font-bold mb-4 text-lime-400 uppercase tracking-widest">03. Sales Correlation Engine</h2>
+                        <p className="text-neutral-400">Input your internal sales trends and our AI cross-references them with competitor launch cycles. We explain exactly which rival feature killed your conversion rate last quarter.</p>
+                    </div>
+                    <div className="p-8 bg-neutral-900/50 border border-neutral-800 rounded-3xl">
+                        <h2 className="text-2xl font-bold mb-4 text-lime-400 uppercase tracking-widest">04. Reputation Data Pulse</h2>
+                        <p className="text-neutral-400">SnapTracker doesn't just look at websites. We ingest verified customer sentiment from G2, Capterra, and Trustpilot to identify the exact friction points your competitors' users are complaining about.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- CAPABILITIES PAGE ---
+function CapabilitiesPage({ user }) {
+    const navigate = useNavigate();
+    return (
+        <div className="bg-black min-h-screen text-white font-sans selection:bg-lime-500/30 pt-32 pb-24 px-6 text-center">
+            <Navbar user={user} />
+            <div className="max-w-5xl mx-auto">
+                <h1 className="text-6xl font-black mb-16 tracking-tighter uppercase">Platform <span className="text-lime-500">Capabilities</span></h1>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="p-10 bg-neutral-900 border border-neutral-800 rounded-3xl text-left">
+                        <h3 className="text-2xl font-bold mb-4">Real-time Scraping</h3>
+                        <p className="text-neutral-400">Bypass caches. SnapTracker performs live, multi-threaded scrapes of every competitor simultaneously.</p>
+                    </div>
+                    <div className="p-10 bg-neutral-900 border border-neutral-800 rounded-3xl text-left">
+                        <h3 className="text-2xl font-bold mb-4">Historical Diffing</h3>
+                        <p className="text-neutral-400">Monitor word-level changes. We detect even the slightest messaging pivots on competitor landing pages.</p>
+                    </div>
+                    <div className="p-10 bg-neutral-900 border border-neutral-800 rounded-3xl text-left">
+                        <h3 className="text-2xl font-bold mb-4">Financial Metadata</h3>
+                        <p className="text-neutral-400">Estimated revenue and user base counts for every tracked competitor, delivered instantly.</p>
+                    </div>
+                    <div className="p-10 bg-neutral-900 border border-neutral-800 rounded-3xl text-left">
+                        <h3 className="text-2xl font-bold mb-4">Review Synthesis</h3>
+                        <p className="text-neutral-400">Direct integration with sentiment data from G2 and Capterra to highlight competitor weaknesses.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- PRICING PAGE ---
+function PricingPage({ user }) {
+    const navigate = useNavigate();
+    return (
+        <div className="bg-black min-h-screen text-white font-sans selection:bg-lime-500/30 pt-32 pb-24 px-6">
+            <Navbar user={user} />
+            <div className="max-w-6xl mx-auto text-center">
+                <h1 className="text-6xl font-black mb-16 tracking-tighter uppercase">Transparent <span className="text-lime-500">Pricing</span></h1>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="p-10 bg-black border border-neutral-800 rounded-[40px] flex flex-col items-center">
+                        <h3 className="text-xl font-bold text-neutral-500 uppercase tracking-widest mb-4">Starter</h3>
+                        <div className="text-4xl font-black mb-8">$0<span className="text-sm font-normal text-neutral-500">/mo</span></div>
+                        <ul className="text-sm text-neutral-400 space-y-4 mb-10 flex-1">
+                            <li>3 Analyses / month</li>
+                            <li>Basic Multi-Matrix</li>
+                            <li>Public Intel Sources</li>
+                        </ul>
+                        <button onClick={() => navigate('/auth')} className="w-full py-4 bg-neutral-900 rounded-2xl font-bold hover:bg-neutral-800 transition-all">Join Free</button>
+                    </div>
+                    <div className="p-10 bg-lime-500 text-black border-4 border-lime-400 rounded-[40px] flex flex-col items-center shadow-[0_0_50px_rgba(132,204,22,0.2)]">
+                        <h3 className="text-xl font-extrabold uppercase tracking-widest mb-4 text-lime-900">Pro</h3>
+                        <div className="text-4xl font-black mb-8 tracking-tighter">$49<span className="text-sm font-bold opacity-50">/mo</span></div>
+                        <ul className="text-sm font-bold space-y-4 mb-10 flex-1">
+                            <li>Unlimited Matrix Runs</li>
+                            <li>Sales Trend Correlation</li>
+                            <li>G2/Capterra Reputation</li>
+                            <li>Priority Recon Support</li>
+                        </ul>
+                        <button onClick={() => navigate('/auth')} className="w-full py-4 bg-black text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-all">Deploy Pro Agent</button>
+                    </div>
+                    <div className="p-10 bg-black border border-neutral-800 rounded-[40px] flex flex-col items-center">
+                        <h3 className="text-xl font-bold text-neutral-500 uppercase tracking-widest mb-4">Enterprise</h3>
+                        <div className="text-4xl font-black mb-8 tracking-tighter">Custom</div>
+                        <ul className="text-sm text-neutral-400 space-y-4 mb-10 flex-1">
+                            <li>Custom Scraping Proxies</li>
+                            <li>Internal CRM Sync</li>
+                            <li>Dedicated Intelligence Agent</li>
+                        </ul>
+                        <button className="w-full py-4 bg-neutral-900 rounded-2xl font-bold hover:bg-neutral-800 transition-all">Contact Sales</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- ANALYSIS PAGE (FORMERLY LANDING PAGE) ---
+function AnalysisPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
   const [productInfo, setProductInfo] = useState('');
   const [competitorUrl, setCompetitorUrl] = useState('');
   const [salesTrend, setSalesTrend] = useState('');
@@ -201,7 +451,7 @@ function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600">SnapTracker</span>
         </h1>
         <p className="text-xl text-neutral-400 max-w-2xl mx-auto font-medium">
-          Dominate Your Market with AI Intelligence. <br/> Enter your product pitch and a competitor's URL.
+          Dominate Your Market with AI Intelligence. <br/> Enter your product pitch and target competitor names.
         </p>
       </div>
 
@@ -384,7 +634,7 @@ function OverviewTab({ result }) {
             <div className="flex items-center space-x-3 mb-5">
               <h2 className="text-xl font-extrabold tracking-widest text-lime-400 uppercase">Competitive Intelligence</h2>
             </div>
-            <p className="text-xl md:text-2xl leading-relaxed text-white font-medium relative z-10">{result.insight || "No insights generated."}</p>
+            <p className="text-sm md:text-base leading-relaxed text-neutral-300 font-medium relative z-10">{result.insight || "No insights generated."}</p>
         </div>
 
         <div className="bg-black rounded-2xl p-6 border border-neutral-800">
@@ -392,14 +642,14 @@ function OverviewTab({ result }) {
             <div className="mb-8">
                 <div className="flex justify-between items-end mb-2">
                 <span className="text-neutral-400 font-medium text-sm">Target Similarity <InfoTooltip text="How closely your product aligns with the targeted competitor base mathematically."/></span>
-                <span className="text-3xl font-bold text-lime-400">{result.similarity}%</span>
+                <span className="text-3xl font-bold text-lime-400">{Math.round(result.similarity)}%</span>
                 </div>
                 <div className="w-full bg-neutral-900 rounded-full h-2"><div className="bg-lime-500 h-2 rounded-full shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.similarity || 0}%` }}></div></div>
             </div>
             <div className="mb-4">
                 <div className="flex justify-between items-end mb-2">
                 <span className="text-neutral-400 font-medium text-sm">AI Confidence <InfoTooltip text="The LLM's internal confidence parameter regarding the objective accuracy of this entire matrix."/></span>
-                <span className="text-3xl font-bold text-lime-400">{result.confidence}%</span>
+                <span className="text-3xl font-bold text-lime-400">{Math.round(result.confidence)}%</span>
                 </div>
                 <div className="w-full bg-neutral-900 rounded-full h-2"><div className="bg-lime-500 h-2 rounded-full shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.confidence || 0}%` }}></div></div>
             </div>
@@ -419,31 +669,51 @@ function OverviewTab({ result }) {
         </div>
       </div>
 
-      <SimilarityGraph matrix={result.matrix} />
+      <DifferentiationGraph matrix={result.matrix} />
 
       {/* Competitor Matrix Details */}
       {result.matrix && result.matrix.length > 0 && (
           <div className="bg-black rounded-2xl p-6 border border-neutral-800 mt-8">
               <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-wider">Competitive Matrix</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {result.matrix.map((comp, idx) => (
-                    <div key={idx} className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl transition-all hover:border-lime-500/50">
+                  {result.matrix.map((comp, idx) => (
+                    <div key={idx} className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl transition-all hover:border-lime-500/50 flex flex-col h-full">
                         <div className="flex justify-between items-center mb-4">
-                            <h4 className="text-lg font-bold text-white truncate max-w-[70%]">{comp.name}</h4>
-                            <span className="bg-black text-lime-400 text-xs font-bold px-2 py-1 rounded-md border border-neutral-800">{comp.similarity}% Vector</span>
+                            <h4 className="text-lg font-extrabold text-white truncate max-w-[65%]">{comp.name}</h4>
+                            <span className="bg-black text-lime-400 text-[10px] font-bold px-2 py-1 rounded-md border border-neutral-800 uppercase tracking-tighter shrink-0">{Math.round(comp.similarity)}% Vector</span>
                         </div>
-                        <div className="space-y-4">
+                        <div className="space-y-4 flex-1">
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="p-2 bg-black border border-neutral-800 rounded-lg">
+                                    <span className="text-[9px] uppercase font-bold text-neutral-500 tracking-widest block mb-1">Est. Revenue</span>
+                                    <p className="text-xs font-bold text-white italic">{comp.revenue || "Private"}</p>
+                                </div>
+                                <div className="p-2 bg-black border border-neutral-800 rounded-lg">
+                                    <span className="text-[9px] uppercase font-bold text-neutral-500 tracking-widest block mb-1">User Base</span>
+                                    <p className="text-xs font-bold text-white italic">{comp.user_base || "Unknown"}</p>
+                                </div>
+                            </div>
+
                             <div className="p-3 bg-neutral-950 border border-neutral-800 rounded-lg">
                                 <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-widest flex items-center mb-1">Their Strategy (Strength)</span>
-                                <p className="text-sm text-neutral-300">{comp.strength}</p>
+                                <p className="text-xs text-neutral-400 leading-relaxed font-medium">{comp.strength}</p>
                             </div>
                             <div className="p-3 bg-lime-950/20 border border-lime-900/30 rounded-lg">
                                 <span className="text-[10px] uppercase font-bold text-lime-500 tracking-widest flex items-center mb-1">Their Vulnerability (Weakness)</span>
-                                <p className="text-sm text-neutral-300">{comp.weakness}</p>
+                                <p className="text-xs text-neutral-400 leading-relaxed font-medium">{comp.weakness}</p>
                             </div>
+
+                            {comp.review_summary && (
+                                <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg border-l-2 border-l-lime-500">
+                                    <span className="text-[10px] uppercase font-bold text-white tracking-widest flex items-center mb-2">
+                                        Market Sentiment (Reviews)
+                                    </span>
+                                    <p className="text-[11px] text-neutral-400 leading-tight italic">"{comp.review_summary}"</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-                 ))}
+                  ))}
               </div>
           </div>
       )}

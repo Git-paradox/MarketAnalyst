@@ -76,8 +76,18 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/analyze")
 def analyze_endpoint(request: AnalyzeRequest):
+    previous_text = None
+    if request.user_id:
+        with SessionLocal() as db:
+            last_analysis = db.query(UserAnalysis).filter(
+                UserAnalysis.user_id == request.user_id,
+                UserAnalysis.competitor_url == request.competitor_url
+            ).order_by(UserAnalysis.timestamp.desc()).first()
+            if last_analysis and last_analysis.raw_scraped_text:
+                previous_text = last_analysis.raw_scraped_text
+
     from app.compare import analyze_competitor
-    result = analyze_competitor(request.product_info, request.competitor_url)
+    result = analyze_competitor(request.product_info, request.competitor_url, previous_text)
     
     if "error" not in result and request.user_id:
         with SessionLocal() as db:
@@ -85,6 +95,7 @@ def analyze_endpoint(request: AnalyzeRequest):
                 user_id=request.user_id,
                 product_info=request.product_info,
                 competitor_url=request.competitor_url,
+                raw_scraped_text=result.pop("scraped_text", None),
                 result_json=json.dumps(result),
                 timestamp=datetime.utcnow()
             )

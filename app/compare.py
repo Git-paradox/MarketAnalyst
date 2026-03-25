@@ -28,10 +28,33 @@ def scrape_text(url: str) -> str:
         print(f"Scrape error for {url}: {e}")
         return ""
 
-def analyze_competitor(product_info: str, competitor_url: str):
+def analyze_competitor(product_info: str, competitor_url: str, previous_scraped_text: str = None):
     competitor_text = scrape_text(competitor_url)
     if not competitor_text:
         competitor_text = "Failed to scrape the competitor's website completely. Use context based on the URL and general knowledge."
+    
+    diff_metrics = None
+    shift_prompt = "No historical tracking data is available for this competitor yet. Proceed with standard analysis."
+    
+    if previous_scraped_text:
+        old_words = set(previous_scraped_text.split())
+        new_words = set(competitor_text.split())
+        added = len(new_words - old_words)
+        removed = len(old_words - new_words)
+        total_old = max(len(old_words), 1)
+        volat = round(((added + removed) / total_old) * 100, 1)
+        diff_metrics = {"words_added": added, "words_removed": removed, "volatility": volat}
+        
+        shift_prompt = f"""
+CRITICAL TRACKING ALERT: You have historical data for this competitor!
+OLD WEBSITE HOMEPAGE TEXT (Last Tracked):
+{previous_scraped_text[:1200]}
+
+NEW WEBSITE HOMEPAGE TEXT (Current):
+{competitor_text[:1200]}
+
+Analyze the explicit differences between their old version and new version. Specifically extract what marketing, pricing, or product pivots they just made. Document this strictly in the 'historical_shifts' JSON array.
+"""
     
     prompt = f"""
 You are SnapTracker, an expert SaaS competitive intelligence analyzer.
@@ -40,7 +63,7 @@ A user has provided info about their product:
 
 They want to compare their product against a competitor's website: {competitor_url}
 Here is the text scraped from the competitor's website:
-{competitor_text}
+{competitor_text[:3000]}
 
 TASK:
 1. Compare the two products highlighting strengths and weaknesses.
@@ -48,11 +71,13 @@ TASK:
 3. Search your vast training knowledge base, simulating data from those exact customer sources to perform the comparison.
 4. Provide actionable intelligence on how the user's product can win against them.
 5. Provide specific ideas on areas where the user should improve their product to stay competitive.
+6. {shift_prompt}
 
 Return ONLY valid JSON in this format:
 {{
   "similarity": 45,
-  "sources_decided": ["G2 Reviews for Competitor X", "Reddit SaaS forums"],
+  "sources_decided": ["G2 Reviews", "Reddit SaaS forums"],
+  "historical_shifts": ["They changed their pricing to be contact-sales only", "Removed features from the free tier"],
   "insight": "Deep AI insight on positioning and G2/Capterra sentiment...",
   "change_type": "opportunity" or "threat" or "strength" or "weakness",
   "impact": "low" or "medium" or "high",
@@ -62,8 +87,7 @@ Return ONLY valid JSON in this format:
     "Improve onboarding based on competitor's weak G2 ratings"
   ],
   "changes": [
-    {{"from": "Competitor's approach to feature X", "to": "Your product's better approach"}},
-    {{"from": "Competitor's common G2 complaint", "to": "Your opportunity to solve it"}}
+    {{"from": "Competitor's approach to feature X", "to": "Your product's better approach"}}
   ]
 }}
 """
@@ -84,6 +108,8 @@ Return ONLY valid JSON in this format:
                     raw_text = raw_text[:-3]
                     
             data = json.loads(raw_text.strip())
+            data["scraped_text"] = competitor_text
+            data["diff_metrics"] = diff_metrics
             return data
         except Exception as e:
             if attempt == 2:
@@ -135,7 +161,7 @@ NEW:
 
             response_text = response.choices[0].message.content.strip()
 
-            # ✅ Parse JSON safely
+            # Parse JSON safely
             try:
                 data = json.loads(response_text)
             except Exception:
@@ -151,14 +177,14 @@ NEW:
         except Exception as e:
             if "429" in str(e) or "rate_limit" in str(e).lower():
                 wait_time = attempt * 2 + 2
-                print(f"Rate limit hit. Retrying in {wait_time} seconds...")
+                print(f"Rate limit hit. Retrying in {{wait_time}} seconds...")
                 time.sleep(wait_time)
                 continue
 
             print("Groq error:", e)
             break
 
-    # ✅ Final fallback
+    # Final fallback
     return {
         "change_type": "other",
         "impact": "medium",
@@ -196,7 +222,7 @@ def compare_latest_snapshots(url: str):
             "similarity": round(result["similarity_score"] * 100, 2),
             "changes": result["changed_sentences"],
 
-            # 🔥 Structured fields for frontend visuals
+            # Structured fields for frontend visuals
             "insight": insight_data["summary"],
             "change_type": insight_data["change_type"],
             "impact": insight_data["impact"],

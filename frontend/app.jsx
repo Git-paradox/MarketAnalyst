@@ -221,6 +221,7 @@ function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogo
   const tabs = [
     { name: '🔥 Overview', path: '/dashboard/overview' },
     { name: '⚔️ Compare', path: '/dashboard/compare' },
+    { name: '🚨 Market Alerts', path: '/dashboard/alerts' },
     { name: '💬 AI Chat', path: '/dashboard/chat' },
     { name: '📁 Tracking History', path: '/dashboard/history'}
   ];
@@ -261,6 +262,7 @@ function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogo
           <Routes>
             <Route path="overview" element={data ? <OverviewTab result={data} /> : <div/>} />
             <Route path="compare" element={data ? <CompareTab result={data} /> : <div/>} />
+            <Route path="alerts" element={data ? <AlertsTab result={data} /> : <div/>} />
             <Route path="chat" element={data ? <ChatTab messages={chatMessages} setMessages={setChatMessages} /> : <div/>} />
             <Route path="history" element={<HistoryTab user={user} loadAnalysis={loadHistoricalAnalysis} />} />
           </Routes>
@@ -350,6 +352,59 @@ function OverviewTab({ result }) {
             </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- ALERTS TAB ---
+function AlertsTab({ result }) {
+  const diffs = result?.diff_metrics;
+  const shifts = result?.historical_shifts || [];
+
+  return (
+    <div className="space-y-8 pb-10">
+      <h2 className="text-3xl font-extrabold text-white">Market Alerts & Shifts</h2>
+      
+      {!diffs && (
+        <div className="p-8 bg-neutral-900 border border-neutral-800 rounded-2xl text-center">
+            <span className="text-4xl block mb-4">🕵️</span>
+            <h3 className="text-xl font-bold text-white mb-2">First Track Record Established</h3>
+            <p className="text-neutral-400 max-w-lg mx-auto">We have successfully taken a mathematical snapshot of this competitor. Track them again in the future to see exactly what features, pricing, and words they change on their website.</p>
+        </div>
+      )}
+
+      {diffs && (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-black rounded-2xl p-6 border border-neutral-800 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
+            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-4">Page Volatility</h3>
+            <div className="text-5xl font-extrabold text-lime-400">{diffs.volatility}%</div>
+            <p className="text-xs mt-2 text-neutral-400">Percentage of words altered since last snapshot</p>
+        </div>
+        <div className="bg-black rounded-2xl p-6 border border-lime-900/30">
+            <h3 className="text-xs font-bold text-lime-500 uppercase tracking-widest mb-4">Content Insertions</h3>
+            <div className="text-5xl font-extrabold text-lime-400">+{diffs.words_added}</div>
+            <p className="text-xs mt-2 text-lime-600/50">New words pushed to production</p>
+        </div>
+        <div className="bg-black rounded-2xl p-6 border border-red-900/30">
+            <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4">Content Deletions</h3>
+            <div className="text-5xl font-extrabold text-red-400">-{diffs.words_removed}</div>
+            <p className="text-xs mt-2 text-red-600/50">Words completely removed</p>
+        </div>
+      </div>
+      )}
+
+      {shifts.length > 0 && (
+          <div className="bg-black rounded-2xl p-6 border border-neutral-800 mt-8">
+            <h3 className="text-lg font-bold text-white mb-6 flex items-center"><span className="text-lime-500 mr-3">⚡</span> Artificial Intelligence Detected Shifts</h3>
+            <div className="space-y-4">
+            {shifts.map((shift, idx) => (
+                <div key={idx} className="bg-neutral-900 p-5 rounded-xl border-l-4 border-lime-500 text-neutral-200 font-medium leading-relaxed">
+                    {shift}
+                </div>
+            ))}
+            </div>
+          </div>
+      )}
     </div>
   );
 }

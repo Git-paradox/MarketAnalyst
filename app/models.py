@@ -58,6 +58,7 @@ class UserAnalysis(Base):
     user_id: Mapped[int] = mapped_column(Integer, index=True)
     product_info: Mapped[str] = mapped_column(String, nullable=False)
     competitor_url: Mapped[str] = mapped_column(String, nullable=False)
+    raw_scraped_text: Mapped[str] = mapped_column(String, nullable=True)
     result_json: Mapped[str] = mapped_column(String, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

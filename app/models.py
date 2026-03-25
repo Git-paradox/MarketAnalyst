@@ -46,3 +46,18 @@ class Job(Base):
     company: Mapped[str] = mapped_column(String, nullable=False)
     intent: Mapped[str] = mapped_column(String, nullable=False)
 
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+
+class UserAnalysis(Base):
+    __tablename__ = "user_analyses"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    product_info: Mapped[str] = mapped_column(String, nullable=False)
+    competitor_url: Mapped[str] = mapped_column(String, nullable=False)
+    result_json: Mapped[str] = mapped_column(String, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+

@@ -19,19 +19,106 @@ const impactColors = {
 function App() {
   const [analysisData, setAnalysisData] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('markanalyst_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('markanalyst_user');
+    setUser(null);
+  };
 
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<LandingPage setAnalysisData={setAnalysisData} setChatMessages={setChatMessages} />} />
-        <Route path="/dashboard/*" element={<DashboardLayout data={analysisData} chatMessages={chatMessages} setChatMessages={setChatMessages} />} />
+        <Route path="/auth" element={
+            user ? <Navigate to="/" replace /> : <AuthPage setUser={setUser} />
+        } />
+        
+        <Route path="/" element={
+            !user ? <Navigate to="/auth" replace /> : <LandingPage setAnalysisData={setAnalysisData} setChatMessages={setChatMessages} user={user} handleLogout={handleLogout} />
+        } />
+        
+        <Route path="/dashboard/*" element={
+            !user ? <Navigate to="/auth" replace /> : <DashboardLayout data={analysisData} chatMessages={chatMessages} setChatMessages={setChatMessages} setAnalysisData={setAnalysisData} user={user} handleLogout={handleLogout} />
+        } />
       </Routes>
     </HashRouter>
   );
 }
 
+// --- AUTH PAGE ---
+function AuthPage({ setUser }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Authentication failed');
+      
+      localStorage.setItem('markanalyst_user', JSON.stringify(data));
+      setUser(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-black px-4">
+      <div className="w-full max-w-md bg-black border border-lime-500/30 p-8 rounded-2xl shadow-[0_0_40px_rgba(132,204,22,0.1)]">
+        <div className="text-center mb-8">
+            <h1 className="text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600 mb-2">MarkAnalystAI</h1>
+            <p className="text-neutral-400 font-medium tracking-wide">Enter the Intelligence Matrix</p>
+        </div>
+        
+        {error && <div className="mb-4 p-3 bg-red-900/20 border border-red-500 text-red-500 rounded-lg text-sm text-center">{error}</div>}
+        
+        <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+                <label className="block text-xs font-bold tracking-widest uppercase text-lime-500 mb-2">Email Address</label>
+                <input type="email" required className="w-full bg-black border border-neutral-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-lime-500 shadow-inner" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} />
+            </div>
+            <div>
+                <label className="block text-xs font-bold tracking-widest uppercase text-lime-500 mb-2">Password</label>
+                <input type="password" required className="w-full bg-black border border-neutral-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-lime-500 shadow-inner" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} />
+            </div>
+            <button type="submit" disabled={loading} className="w-full bg-lime-500 text-black font-extrabold tracking-widest uppercase py-3 rounded-xl hover:bg-lime-400 transition-colors shadow-[0_0_15px_rgba(132,204,22,0.2)] disabled:opacity-50 mt-4">
+                {loading ? 'Authenticating...' : (isLogin ? 'Initialize Session' : 'Create Account')}
+            </button>
+        </form>
+        
+        <div className="mt-6 text-center">
+            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-neutral-500 hover:text-lime-500 text-sm font-semibold transition-colors">
+                {isLogin ? "Need an account? Register →" : "Have an account? Login →"}
+            </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- LANDING PAGE ---
-function LandingPage({ setAnalysisData, setChatMessages }) {
+function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
   const [productInfo, setProductInfo] = useState('');
   const [competitorUrl, setCompetitorUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,18 +136,14 @@ function LandingPage({ setAnalysisData, setChatMessages }) {
       const response = await fetch(`/api/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_info: productInfo, competitor_url: competitorUrl })
+          body: JSON.stringify({ product_info: productInfo, competitor_url: competitorUrl, user_id: user.id })
       });
       
-      let data;
-      try { data = await response.json(); } catch (e) { throw new Error('Invalid JSON response from server.'); }
-      
+      let data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Failed to analyze competitor.');
       
       setAnalysisData(data);
-      setChatMessages([
-        { role: 'assistant', content: `Analysis complete. I've cross-referenced customer reviews for ${competitorUrl} with your product information. Ask me anything else about this comparison!` }
-      ]);
+      setChatMessages([{ role: 'assistant', content: `Analysis complete. I've cross-referenced customer reviews for ${competitorUrl} with your product information. Ask me anything else about this comparison!` }]);
       navigate('/dashboard/overview');
     } catch (err) {
       setError(err.message || 'An unexpected error occurred. Please try again.');
@@ -70,308 +153,244 @@ function LandingPage({ setAnalysisData, setChatMessages }) {
   };
 
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center text-gray-200">
+    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center bg-black text-gray-200">
+      
+      <div className="absolute top-6 right-6 flex items-center space-x-4">
+        <span className="text-lime-500 font-medium text-sm">Agent: {user.email}</span>
+        <button onClick={() => navigate('/dashboard/history')} className="text-neutral-500 hover:text-white text-sm font-bold uppercase underline decoration-neutral-800">History</button>
+        <button onClick={handleLogout} className="text-neutral-500 hover:text-red-500 text-sm font-bold uppercase">Logout</button>
+      </div>
+
       <div className="text-center max-w-4xl mx-auto mb-10 animate-slide-down">
         <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl mb-6 text-white drop-shadow-xl">
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600">MarkAnalystAI</span>
         </h1>
         <p className="text-xl text-neutral-400 max-w-2xl mx-auto font-medium">
-          Dominate Your Market with AI Intelligence. <br/> Enter your product pitch and a competitor's URL to instantly scrape and compare against thousands of simulated G2/Capterra reviews.
+          Dominate Your Market with AI Intelligence. <br/> Enter your product pitch and a competitor's URL.
         </p>
       </div>
 
-      <div className="w-full max-w-3xl mx-auto bg-neutral-900 rounded-2xl p-8 card-shadow mb-8 animate-slide-down border border-lime-500/20 relative overflow-hidden" style={{animationDelay: '0.1s'}}>
-        {/* Acid green flair */}
+      <div className="w-full max-w-3xl mx-auto bg-black rounded-2xl p-8 border border-lime-500/30 relative overflow-hidden shadow-[0_0_40px_rgba(132,204,22,0.05)]">
         <div className="absolute -top-32 -right-32 w-64 h-64 bg-lime-500 rounded-full mix-blend-multiply filter blur-[80px] opacity-10 pointer-events-none"></div>
-        <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-lime-400 rounded-full mix-blend-multiply filter blur-[80px] opacity-10 pointer-events-none"></div>
         
         <form onSubmit={analyzeCompetitor} className="flex flex-col gap-6 relative z-10">
           <div>
-            <label className="block text-sm font-semibold tracking-wide text-neutral-300 mb-2 uppercase">Your Product Information</label>
+            <label className="block text-sm font-semibold tracking-widest text-lime-500 mb-2 uppercase">Your Product Information</label>
             <textarea
-              required
-              rows="4"
-              className="w-full bg-black border border-neutral-700 rounded-xl py-3 px-4 text-neutral-200 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500 transition-all placeholder-neutral-600 shadow-inner"
-              placeholder="e.g. We are a fast, scalable CRM built for startups. We feature AI-driven follow ups..."
-              value={productInfo}
-              onChange={(e) => setProductInfo(e.target.value)}
-              disabled={loading}
+              required rows="4"
+              className="w-full bg-black border border-neutral-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-lime-500 shadow-inner"
+              placeholder="e.g. We are a fast, scalable CRM built for startups..." value={productInfo} onChange={(e) => setProductInfo(e.target.value)} disabled={loading}
             ></textarea>
           </div>
           <div>
-            <label className="block text-sm font-semibold tracking-wide text-neutral-300 mb-2 uppercase">Competitor URL</label>
+            <label className="block text-sm font-semibold tracking-widest text-lime-500 mb-2 uppercase">Competitor URL</label>
             <input
-              type="url"
-              required
-              className="w-full bg-black border border-neutral-700 rounded-xl py-4 px-4 text-neutral-200 focus:outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500 transition-all placeholder-neutral-600 shadow-inner"
-              placeholder="https://competitor.com"
-              value={competitorUrl}
-              onChange={(e) => setCompetitorUrl(e.target.value)}
-              disabled={loading}
+              type="url" required
+              className="w-full bg-black border border-neutral-800 rounded-xl py-4 px-4 text-white focus:outline-none focus:border-lime-500 shadow-inner"
+              placeholder="https://competitor.com" value={competitorUrl} onChange={(e) => setCompetitorUrl(e.target.value)} disabled={loading}
             />
           </div>
           <button
-            type="submit"
-            disabled={loading}
-            className="mt-4 w-full bg-lime-500 hover:bg-lime-400 text-black font-extrabold tracking-widest py-4 px-8 rounded-xl transition duration-300 transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:transform-none flex items-center justify-center shadow-lg shadow-lime-500/20 uppercase"
+            type="submit" disabled={loading}
+            className="mt-4 w-full bg-lime-500 hover:bg-lime-400 text-black font-extrabold tracking-widest py-4 px-8 rounded-xl transition duration-300 flex items-center justify-center shadow-[0_0_20px_rgba(132,204,22,0.3)] uppercase disabled:opacity-50"
           >
-            {loading ? (
-              <span className="flex items-center">
-                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing Intel...
-              </span>
-            ) : 'Analyze Competitor'}
+            {loading ? 'Processing Intel...' : 'Analyze Competitor'}
           </button>
         </form>
       </div>
 
-      {error && (
-        <div className="w-full max-w-3xl mx-auto bg-red-900/30 border border-red-800 text-red-400 px-6 py-4 rounded-xl mb-8 animate-fade-in flex items-start shadow-lg">
-          <span className="text-3xl mr-3">⚠️</span>
-          <div>
-            <h3 className="font-bold text-lg text-red-300">Analysis Failed</h3>
-            <p className="text-sm mt-1">{error}</p>
-          </div>
-        </div>
-      )}
+      {error && <div className="mt-6 text-red-500 bg-red-900/20 border border-red-500 p-4 rounded-xl max-w-xl text-center w-full">{error}</div>}
     </div>
   );
 }
 
 // --- DASHBOARD LAYOUT ---
-function DashboardLayout({ data, chatMessages, setChatMessages }) {
+function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogout, setAnalysisData }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    if (!data) {
-      navigate('/', { replace: true });
-    }
-  }, [data, navigate]);
-
-  if (!data) return null;
-
-  // Redirect /dashboard to /dashboard/overview
-  if (location.pathname === '/dashboard' || location.pathname === '/dashboard/') {
-     return <Navigate to="/dashboard/overview" replace />;
+  if (!data && location.pathname !== '/dashboard/history') {
+    useEffect(() => { navigate('/', { replace: true }); }, []);
   }
+
+  const loadHistoricalAnalysis = (historicalData) => {
+      setAnalysisData(historicalData.result);
+      navigate('/dashboard/overview');
+  };
 
   const tabs = [
     { name: '🔥 Overview', path: '/dashboard/overview' },
     { name: '⚔️ Compare', path: '/dashboard/compare' },
-    { name: '💬 AI Chat', path: '/dashboard/chat' }
+    { name: '💬 AI Chat', path: '/dashboard/chat' },
+    { name: '📁 Tracking History', path: '/dashboard/history'}
   ];
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-black selection:bg-lime-500/30 font-sans">
       
-      {/* Sidebar */}
-      <div className="w-full md:w-64 bg-neutral-900 border-b md:border-b-0 md:border-r border-neutral-800 flex flex-col shrink-0 relative z-20">
-        <div className="p-6 border-b border-neutral-800 flex items-center justify-between">
+      <div className="w-full md:w-64 bg-black border-b md:border-b-0 md:border-r border-neutral-900 flex flex-col shrink-0 relative z-20">
+        <div className="p-6 border-b border-neutral-900 flex items-center justify-between">
           <Link to="/" className="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-lime-600 drop-shadow-lg">
             MarkAnalystAI
           </Link>
         </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto overflow-x-hidden flex md:flex-col gap-2 md:gap-0 font-semibold tracking-wide">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto font-semibold tracking-wide">
           {tabs.map(tab => {
             const isActive = location.pathname.includes(tab.path);
             return (
-              <Link 
-                key={tab.path} 
-                to={tab.path}
-                className={`flex-1 md:flex-none px-4 py-4 rounded-xl transition-all duration-200 ${isActive ? 'bg-lime-500 text-black shadow-[0_0_15px_rgba(132,204,22,0.3)]' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'}`}
+              <Link key={tab.path} to={tab.path}
+                className={`block px-4 py-4 rounded-xl transition-all duration-200 ${isActive ? 'bg-lime-500 text-black shadow-[0_0_15px_rgba(132,204,22,0.3)]' : 'text-neutral-500 hover:bg-neutral-900 hover:text-lime-500'}`}
               >
                 {tab.name}
               </Link>
             )
           })}
         </nav>
-        <div className="p-4 border-t border-neutral-800 hidden md:block">
-          <button onClick={() => navigate('/')} className="w-full text-center text-sm font-semibold tracking-wider uppercase text-neutral-500 hover:text-white transition-colors py-2">
-            ← New Analysis
+        <div className="p-4 border-t border-neutral-900 flex flex-col space-y-3">
+          <button onClick={() => navigate('/')} className="w-full text-center text-xs font-bold tracking-widest uppercase text-lime-500 hover:text-white transition-colors bg-lime-900/20 py-3 rounded-xl border border-lime-900/50">
+            + New Analysis
+          </button>
+          <button onClick={handleLogout} className="w-full text-center text-xs font-bold tracking-widest uppercase text-neutral-600 hover:text-red-500 transition-colors">
+            Logout
           </button>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto relative p-4 md:p-10 scroll-smooth">
+      <div className="flex-1 overflow-y-auto relative p-4 md:p-10 scroll-smooth bg-black">
         <div className="max-w-5xl mx-auto animate-fade-in relative z-10 h-full">
           <Routes>
-            <Route path="overview" element={<OverviewTab result={data} />} />
-            <Route path="compare" element={<CompareTab result={data} />} />
-            <Route path="chat" element={<ChatTab messages={chatMessages} setMessages={setChatMessages} />} />
+            <Route path="overview" element={data ? <OverviewTab result={data} /> : <div/>} />
+            <Route path="compare" element={data ? <CompareTab result={data} /> : <div/>} />
+            <Route path="chat" element={data ? <ChatTab messages={chatMessages} setMessages={setChatMessages} /> : <div/>} />
+            <Route path="history" element={<HistoryTab user={user} loadAnalysis={loadHistoricalAnalysis} />} />
           </Routes>
         </div>
       </div>
-      
     </div>
   );
 }
 
-// --- TAB COMPONENTS ---
+// --- HISTORY TAB ---
+function HistoryTab({ user, loadAnalysis }) {
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
 
+    useEffect(() => {
+        fetch(`/api/history/${user.id}`).then(r => r.json()).then(data => {
+            setHistory(data);
+            setLoading(false);
+        });
+    }, [user.id]);
+
+    return (
+        <div className="space-y-8 pb-10">
+            <h2 className="text-3xl font-extrabold text-white mb-2">Tracking History</h2>
+            <div className="grid grid-cols-1 gap-4">
+                {loading ? <div className="text-lime-500 font-bold animate-pulse">Loading intel archives...</div> : 
+                 history.length === 0 ? <div className="p-6 bg-black border border-neutral-800 rounded-xl text-neutral-500">No previous comparisons tracked.</div> :
+                 history.map(item => (
+                     <div key={item.id} className="bg-black border border-neutral-800 p-6 rounded-2xl flex items-center justify-between group hover:border-lime-500 transition-colors">
+                         <div>
+                             <h4 className="font-bold text-white text-lg">{item.competitor_url}</h4>
+                             <p className="text-xs text-neutral-500">{new Date(item.timestamp).toLocaleString()}</p>
+                         </div>
+                         <button onClick={() => loadAnalysis(item)} className="bg-lime-900/20 text-lime-500 border border-lime-900/50 px-5 py-2 rounded-lg font-bold tracking-widest uppercase text-xs group-hover:bg-lime-500 group-hover:text-black transition-colors">
+                             View intel
+                         </button>
+                     </div>
+                 ))
+                }
+            </div>
+        </div>
+    )
+}
+
+// --- OVERVIEW TAB ---
 function OverviewTab({ result }) {
   return (
     <div className="space-y-8 pb-10">
-      <div className="flex items-center space-x-3 mb-2">
-        <h2 className="text-3xl font-extrabold text-white">Analysis Overview</h2>
-      </div>
-
+      <h2 className="text-3xl font-extrabold text-white">Analysis Overview</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Core AI Insight */}
-        <div className="md:col-span-2 rounded-2xl p-8 insight-gradient card-shadow relative overflow-hidden group hover:shadow-[0_0_40px_rgba(132,204,22,0.15)] transition-all duration-300">
-            <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500 pointer-events-none text-lime-500">
-            <span className="text-8xl">✦</span>
-            </div>
+        <div className="md:col-span-2 rounded-2xl p-8 bg-black border border-lime-500/50 shadow-[0_0_30px_rgba(132,204,22,0.1)] relative overflow-hidden group">
             <div className="flex items-center space-x-3 mb-5">
-            <span className="text-lime-500 text-3xl">🔥</span>
-            <h2 className="text-xl font-extrabold tracking-widest text-lime-400 uppercase">Competitive Intelligence</h2>
+              <span className="text-lime-500 text-3xl">🔥</span>
+              <h2 className="text-xl font-extrabold tracking-widest text-lime-400 uppercase">Competitive Intelligence</h2>
             </div>
-            <p className="text-xl md:text-2xl leading-relaxed text-neutral-200 font-medium relative z-10">
-            {result.insight || "No significant insights generated."}
-            </p>
+            <p className="text-xl md:text-2xl leading-relaxed text-white font-medium relative z-10">{result.insight || "No insights generated."}</p>
         </div>
 
-        {/* Metrics Board */}
-        <div className="bg-neutral-900 rounded-2xl p-6 card-shadow border border-neutral-800">
-            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-6">Metrics & Sources</h3>
+        <div className="bg-black rounded-2xl p-6 border border-neutral-800">
+            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-6">Metrics</h3>
             <div className="mb-8">
                 <div className="flex justify-between items-end mb-2">
-                <span className="text-neutral-400 font-medium text-sm">Similarity to Competitor</span>
+                <span className="text-neutral-400 font-medium text-sm">Similarity</span>
                 <span className="text-3xl font-bold text-lime-400">{result.similarity}%</span>
                 </div>
-                <div className="w-full bg-black rounded-full h-2 overflow-hidden border border-neutral-800">
-                <div className="bg-lime-500 h-2 rounded-full progress-bar-fill shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.similarity || 0}%` }}></div>
-                </div>
+                <div className="w-full bg-neutral-900 rounded-full h-2"><div className="bg-lime-500 h-2 rounded-full shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.similarity || 0}%` }}></div></div>
             </div>
-            <div className="mb-8">
+            <div className="mb-4">
                 <div className="flex justify-between items-end mb-2">
-                <div className="flex items-center space-x-2">
-                    <span className="text-neutral-400 font-medium text-sm">AI Confidence</span>
-                    <div className="group relative flex items-center justify-center cursor-help">
-                    <svg className="w-4 h-4 text-neutral-500 hover:text-lime-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-56 p-2.5 bg-black border border-lime-500/50 rounded-lg text-xs leading-relaxed text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20 shadow-2xl text-center">
-                        Confidence level based on competitor documentation and verified review data.
-                    </div>
-                    </div>
-                </div>
+                <span className="text-neutral-400 font-medium text-sm">AI Confidence</span>
                 <span className="text-3xl font-bold text-lime-400">{result.confidence}%</span>
                 </div>
-                <div className="w-full bg-black rounded-full h-2 overflow-hidden border border-neutral-800">
-                <div className="bg-lime-500 h-2 rounded-full progress-bar-fill shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.confidence || 0}%` }}></div>
-                </div>
+                <div className="w-full bg-neutral-900 rounded-full h-2"><div className="bg-lime-500 h-2 rounded-full shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.confidence || 0}%` }}></div></div>
             </div>
-
-            {result.sources_decided && result.sources_decided.length > 0 && (
-                <div className="mt-8 p-4 bg-black border border-neutral-800 rounded-xl">
-                <span className="text-xs text-neutral-500 block mb-3 font-bold uppercase tracking-widest">Knowledge Sources Mined</span>
-                <div className="flex flex-wrap gap-2">
-                    {result.sources_decided.map((src, i) => (
-                        <span key={i} className="px-2 py-1.5 text-xs font-semibold bg-neutral-900 shadow-inner text-lime-400 border border-lime-500/20 rounded">
-                        {src}
-                        </span>
-                    ))}
-                </div>
-                </div>
-            )}
+            {result.sources_decided && result.sources_decided.map(s => <span key={s} className="inline-block mt-4 mr-2 px-2 py-1 text-xs font-bold bg-neutral-900 text-lime-500 border border-lime-900 rounded">{s}</span>)}
         </div>
 
-        {/* Classification */}
-        <div className="bg-neutral-900 rounded-2xl p-6 card-shadow border border-neutral-800 flex flex-col justify-center gap-8">
+        <div className="bg-black rounded-2xl p-6 border border-neutral-800 flex flex-col justify-center gap-8">
             <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Classification</h3>
             <div>
-            <span className="text-xs text-neutral-500 block mb-3 font-semibold uppercase tracking-wider">Insight Type</span>
-            <span className="inline-flex items-center px-4 py-3 rounded-xl text-md font-bold bg-black text-lime-400 border border-lime-500/20 shadow-inner w-full justify-center">
-                <span className="mr-3 text-2xl">{icons[result.change_type] || '🎯'}</span> 
-                {result.change_type ? result.change_type.charAt(0).toUpperCase() + result.change_type.slice(1) : 'Opportunity'}
-            </span>
+              <span className="text-xs text-neutral-500 block mb-2 font-semibold uppercase tracking-wider">Insight Type</span>
+              <span className="inline-flex px-4 py-3 rounded-xl bg-neutral-900 text-lime-400 border border-neutral-800 w-full font-bold justify-center">{result.change_type}</span>
             </div>
-            
             <div>
-            <span className="text-xs text-neutral-500 block mb-3 font-semibold uppercase tracking-wider">Strategic Impact</span>
-            <span className={`inline-flex items-center px-4 py-3 rounded-xl text-md justify-center w-full font-black tracking-widest uppercase border shadow-inner ${impactColors[result.impact] || impactColors.high}`}>
-                {result.impact ? result.impact : 'HIGH'}
-            </span>
+              <span className="text-xs text-neutral-500 block mb-2 font-semibold uppercase tracking-wider">Strategic Impact</span>
+              <span className={`inline-flex px-4 py-3 rounded-xl justify-center w-full font-black uppercase border ${impactColors[result.impact] || impactColors.high}`}>{result.impact}</span>
             </div>
         </div>
-
       </div>
     </div>
   );
 }
 
+// --- COMPARE TAB ---
 function CompareTab({ result }) {
   return (
     <div className="space-y-8 pb-10">
       <h2 className="text-3xl font-extrabold text-white mb-2">Strategy & Comparison</h2>
-
-      <div className="bg-neutral-900 rounded-2xl p-6 md:p-8 card-shadow border border-neutral-800">
-        <div className="flex items-center space-x-3 mb-8">
-            <span className="text-neutral-400 text-3xl">⚔️</span>
-            <h3 className="text-2xl font-bold text-white">Direct Comparison</h3>
-        </div>
-        
-        {result.changes && result.changes.length > 0 ? (
-            <div className="space-y-6">
-            {result.changes.map((change, idx) => (
-                <div key={idx} className="bg-black rounded-2xl p-6 border border-neutral-800/80 hover:border-lime-500/30 transition-colors shadow-inner grid grid-cols-1 md:grid-cols-2 gap-4">
-                {change.from && (
-                    <div className="flex flex-col space-y-3 p-4 bg-neutral-900/40 rounded-xl border border-neutral-800">
-                    <span className="select-none inline-flex items-center justify-center w-max px-3 h-7 rounded bg-red-900/20 text-red-500 font-extrabold tracking-widest text-xs border border-red-900/50">COMPETITOR</span>
-                    <p className="text-neutral-400 text-sm md:text-base leading-relaxed">{change.from}</p>
-                    </div>
-                )}
-                <div className="flex flex-col space-y-3 p-4 bg-lime-900/10 rounded-xl border border-lime-900/20">
-                    <span className="select-none inline-flex items-center justify-center w-max px-3 h-7 rounded bg-lime-900/20 text-lime-500 font-extrabold tracking-widest text-xs border border-lime-900/50">YOUR PRODUCT</span>
-                    <p className="text-neutral-100 font-medium text-sm md:text-base leading-relaxed">{change.to}</p>
+      <div className="bg-black rounded-2xl p-6 border border-neutral-800">
+        {result.changes?.map((change, idx) => (
+            <div key={idx} className="bg-black rounded-2xl p-6 border border-neutral-800 hover:border-lime-500/30 transition-colors grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="p-4 bg-neutral-900 rounded-xl border border-neutral-800">
+                    <span className="px-2 py-1 rounded bg-red-900/20 text-red-500 font-extrabold text-xs">COMPETITOR</span>
+                    <p className="mt-2 text-neutral-300">{change.from}</p>
                 </div>
+                <div className="p-4 bg-lime-900/10 rounded-xl border border-lime-900/30">
+                    <span className="px-2 py-1 rounded bg-lime-900/20 text-lime-500 font-extrabold text-xs">YOUR PRODUCT</span>
+                    <p className="mt-2 text-white">{change.to}</p>
                 </div>
-            ))}
             </div>
-        ) : (
-            <div className="text-center py-16 text-neutral-500 bg-black rounded-xl border border-dashed border-neutral-800">
-            <p className="text-lg">No specific direct comparison points generated.</p>
-            </div>
-        )}
+        ))}
       </div>
-
-      {/* Improvements */}
-      {result.improvements && result.improvements.length > 0 && (
-        <div className="bg-neutral-900 rounded-2xl p-6 md:p-8 card-shadow border border-neutral-800">
-            <div className="flex items-center space-x-3 mb-8">
-            <span className="text-lime-500 text-3xl">💡</span>
-            <h3 className="text-2xl font-bold text-white">Actionable Next Steps</h3>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-            {result.improvements.map((idea, idx) => (
-                <div key={idx} className="flex items-start space-x-4 bg-black rounded-xl p-6 border border-neutral-800 hover:border-lime-500/20 transition-all shadow-md group">
-                <span className="text-lime-500 mt-1 text-xl group-hover:scale-125 transition-transform duration-300">✦</span>
-                <p className="text-neutral-200 text-base md:text-lg font-medium leading-relaxed">{idea}</p>
-                </div>
-            ))}
-            </div>
-        </div>
-      )}
+      {result.improvements?.map((idea, idx) => (
+         <div key={idx} className="flex bg-black rounded-xl p-6 border border-neutral-800 hover:border-lime-500/20">
+             <span className="text-lime-500 mr-4 text-xl">✦</span>
+             <p className="text-neutral-200 text-lg">{idea}</p>
+         </div>
+      ))}
     </div>
   );
 }
 
+// --- CHAT TAB ---
 function ChatTab({ messages, setMessages }) {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const scrollRef = useRef(null);
 
-  // SCROLL BUG FIX: Scroll only occurs inside this container!
   useEffect(() => {
-    if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, chatLoading]);
 
   const sendChatMessage = async (e) => {
@@ -379,77 +398,35 @@ function ChatTab({ messages, setMessages }) {
     if (!chatInput.trim() || chatLoading) return;
 
     const newMessages = [...messages, { role: 'user', content: chatInput }];
-    setMessages(newMessages);
-    setChatInput('');
-    setChatLoading(true);
+    setMessages(newMessages); setChatInput(''); setChatLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages })
-      });
-      
-      const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || 'Chat failed');
-      
-      setMessages([...newMessages, { role: 'assistant', content: data.response }]);
-    } catch (err) {
-      setMessages([...newMessages, { role: 'assistant', content: `Error: ${err.message}` }]);
-    } finally {
-      setChatLoading(false);
-    }
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: newMessages }) });
+      const data = await res.json();
+      setMessages([...newMessages, { role: 'assistant', content: data.response || "Error processing" }]);
+    } finally { setChatLoading(false); }
   };
 
   return (
     <div className="h-[85vh] flex flex-col pt-2 pb-6">
         <h2 className="text-3xl font-extrabold text-white mb-6">AI Strategy Chat</h2>
-        <div className="bg-neutral-900 flex-1 rounded-2xl flex flex-col card-shadow border border-lime-500/30 overflow-hidden relative">
-            
-            {/* Header */}
-            <div className="bg-black px-6 py-4 border-b border-neutral-800 flex items-center justify-between z-10 shadow-sm">
-                <h3 className="font-bold text-white tracking-widest uppercase flex items-center space-x-3">
-                <span className="w-2.5 h-2.5 bg-lime-500 rounded-full animate-pulse shadow-[0_0_10px_#84cc16]"></span>
-                <span>MarkAnalystAI Assistant</span>
-                </h3>
+        <div className="bg-black flex-1 rounded-2xl flex flex-col border border-neutral-800 overflow-hidden relative">
+            <div className="bg-neutral-900 px-6 py-4 border-b border-neutral-800 flex items-center shadow-sm">
+                <span className="w-2.5 h-2.5 bg-lime-500 rounded-full animate-pulse mr-3"></span>
+                <span className="font-bold text-white tracking-widest uppercase">MarkAnalystAI Assistant</span>
             </div>
-            
-            {/* Scrollable Chat History Container (FIXED SCROLL) */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#050505] scroll-smooth">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-black scroll-smooth">
                 {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-5 py-4 text-base leading-relaxed ${msg.role === 'user' ? 'bg-lime-500 text-black font-semibold rounded-br-sm shadow-[0_0_15px_rgba(132,204,22,0.15)]' : 'bg-neutral-800 text-neutral-200 border border-neutral-700 rounded-bl-sm shadow-md'}`}>
+                    <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${msg.role === 'user' ? 'bg-lime-500 text-black font-semibold rounded-br-sm' : 'bg-neutral-900 text-white border border-neutral-800 rounded-bl-sm'}`}>
                     {msg.content}
                     </div>
                 </div>
                 ))}
-                {chatLoading && (
-                <div className="flex justify-start">
-                    <div className="bg-neutral-800 text-neutral-400 border border-neutral-700 rounded-2xl rounded-bl-sm px-6 py-4 flex items-center space-x-2">
-                    <span className="animate-bounce">●</span><span className="animate-bounce delay-100">●</span><span className="animate-bounce delay-200">●</span>
-                    </div>
-                </div>
-                )}
             </div>
-
-            {/* Input Form */}
-            <form onSubmit={sendChatMessage} className="p-4 bg-black border-t border-neutral-800 flex items-center space-x-3 z-10">
-                <input
-                type="text"
-                className="flex-1 bg-neutral-900 border border-neutral-700 text-white font-medium rounded-xl py-4 px-5 focus:outline-none focus:border-lime-500 placeholder-neutral-500 transition-colors shadow-inner"
-                placeholder="Ask follow-up questions about customer reviews or feature comparisons..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                disabled={chatLoading}
-                autoFocus
-                />
-                <button
-                type="submit"
-                disabled={chatLoading}
-                className="bg-lime-500 hover:bg-lime-400 text-black font-bold p-4 rounded-xl transition-all disabled:opacity-50 transform hover:scale-[1.03] active:scale-95 shadow-[0_0_15px_rgba(132,204,22,0.2)]"
-                >
-                <svg className="w-6 h-6 transform -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                </button>
+            <form onSubmit={sendChatMessage} className="p-4 bg-neutral-900 border-t border-neutral-800 flex">
+                <input type="text" className="flex-1 bg-black border border-neutral-700 text-white rounded-xl py-4 px-5 focus:outline-none focus:border-lime-500 mr-3" placeholder="Ask follow-up questions..." value={chatInput} onChange={e => setChatInput(e.target.value)} disabled={chatLoading} />
+                <button type="submit" disabled={chatLoading} className="bg-lime-500 text-black font-bold p-4 rounded-xl px-6">Send</button>
             </form>
         </div>
     </div>

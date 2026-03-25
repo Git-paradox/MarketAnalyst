@@ -64,8 +64,9 @@ def login(request: SignupRequest):
 
 class AnalyzeRequest(BaseModel):
     product_info: str
-    competitor_url: str
-    user_id: int = None
+    competitor_names: str
+    sales_trend: str | None = None
+    user_id: int | None = None
 
 class ChatMessage(BaseModel):
     role: str
@@ -81,20 +82,22 @@ def analyze_endpoint(request: AnalyzeRequest):
         with SessionLocal() as db:
             last_analysis = db.query(UserAnalysis).filter(
                 UserAnalysis.user_id == request.user_id,
-                UserAnalysis.competitor_url == request.competitor_url
+                UserAnalysis.brand_names == request.competitor_names
             ).order_by(UserAnalysis.timestamp.desc()).first()
             if last_analysis and last_analysis.raw_scraped_text:
                 previous_text = last_analysis.raw_scraped_text
 
-    from app.compare import analyze_competitor
-    result = analyze_competitor(request.product_info, request.competitor_url, previous_text)
+    from app.compare import analyze_competitors
+    result = analyze_competitors(request.product_info, request.competitor_names, previous_text, request.sales_trend)
     
     if "error" not in result and request.user_id:
         with SessionLocal() as db:
             analysis = UserAnalysis(
                 user_id=request.user_id,
                 product_info=request.product_info,
-                competitor_url=request.competitor_url,
+                sales_trend=request.sales_trend,
+                brand_names=request.competitor_names,
+                competitor_url="",
                 raw_scraped_text=result.pop("scraped_text", None),
                 result_json=json.dumps(result),
                 timestamp=datetime.utcnow()
@@ -114,7 +117,7 @@ def get_user_history(user_id: int):
             {
                 "id": a.id,
                 "product_info": a.product_info,
-                "competitor_url": a.competitor_url,
+                "brand_names": a.brand_names or a.competitor_url,
                 "timestamp": a.timestamp.isoformat(),
                 "result": json.loads(a.result_json)
             } for a in analyses

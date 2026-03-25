@@ -28,17 +28,67 @@ def scrape_text(url: str) -> str:
         print(f"Scrape error for {url}: {e}")
         return ""
 
-def analyze_competitor(product_info: str, competitor_url: str, previous_scraped_text: str = None):
-    competitor_text = scrape_text(competitor_url)
-    if not competitor_text:
-        competitor_text = "Failed to scrape the competitor's website completely. Use context based on the URL and general knowledge."
-    
+def ask_llm(messages, max_tokens=2500):
+    for attempt in range(3):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                max_tokens=max_tokens,
+            )
+            raw_text = response.choices[0].message.content.strip()
+            
+            # Robust JSON extraction
+            start_obj = raw_text.find('{')
+            start_arr = raw_text.find('[')
+            
+            is_obj = start_obj != -1 and (start_arr == -1 or start_obj < start_arr)
+            is_arr = start_arr != -1 and (start_obj == -1 or start_arr < start_obj)
+            
+            if is_obj:
+                end_obj = raw_text.rfind('}') + 1
+                raw_text = raw_text[start_obj:end_obj]
+            elif is_arr:
+                end_arr = raw_text.rfind(']') + 1
+                raw_text = raw_text[start_arr:end_arr]
+            
+            return raw_text.strip()
+        except Exception as e:
+            if attempt == 2:
+                raise e
+            time.sleep(2)
+
+def analyze_competitors(product_info: str, brand_names: str, previous_scraped_text: str = None, sales_trend: str = None):
+    # Step 1: Autonomous URL Discovery
+    discovery_msg = [
+        {"role": "system", "content": "You are an expert at identifying official SaaS company websites."},
+        {"role": "user", "content": f"Return a JSON array of exactly 1 official homepage URL for each of these companies/products: {brand_names}. Only return the JSON array, like [\"https://website.com\"]."}
+    ]
+    try:
+        urls_json = ask_llm(discovery_msg, 200)
+        urls_to_scrape = json.loads(urls_json)
+        if not isinstance(urls_to_scrape, list):
+            urls_to_scrape = [brand_names] # Fallback
+    except:
+        urls_to_scrape = [] # If all else fails
+        
+    # Step 2: Parallel/Sequential Scraping
+    combined_competitor_text = ""
+    for url in urls_to_scrape:
+        text = scrape_text(url)
+        if text:
+            combined_competitor_text += f"\n--- DATA FROM {url} ---\n{text}"
+            
+    if not combined_competitor_text.strip():
+        combined_competitor_text = "Failed to scrape any live competitor data. Rely entirely on your LLM internal training data regarding these specific brands."
+
+    # Step 3: Historical Diffing
     diff_metrics = None
-    shift_prompt = "No historical tracking data is available for this competitor yet. Proceed with standard analysis."
+    shift_prompt = "No historical tracking data is available for these brands yet. Proceed with standard analysis."
     
     if previous_scraped_text:
         old_words = set(previous_scraped_text.split())
-        new_words = set(competitor_text.split())
+        new_words = set(combined_competitor_text.split())
         added = len(new_words - old_words)
         removed = len(old_words - new_words)
         total_old = max(len(old_words), 1)
@@ -46,75 +96,72 @@ def analyze_competitor(product_info: str, competitor_url: str, previous_scraped_
         diff_metrics = {"words_added": added, "words_removed": removed, "volatility": volat}
         
         shift_prompt = f"""
-CRITICAL TRACKING ALERT: You have historical data for this competitor!
-OLD WEBSITE HOMEPAGE TEXT (Last Tracked):
-{previous_scraped_text[:1200]}
+CRITICAL TRACKING ALERT: You have historical data for these competitors!
+OLD MARKET DATA (Last Tracked):
+{previous_scraped_text[:2000]}
 
-NEW WEBSITE HOMEPAGE TEXT (Current):
-{competitor_text[:1200]}
+NEW MARKET DATA (Current):
+{combined_competitor_text[:2000]}
 
 Analyze the explicit differences between their old version and new version. Specifically extract what marketing, pricing, or product pivots they just made. Document this strictly in the 'historical_shifts' JSON array.
 """
-    
+
+    sales_prompt = ""
+    if sales_trend and sales_trend.strip():
+        sales_prompt = f"3. CRITICAL SALES CONTEXT: The user provided a recent change in their sales vector: '{sales_trend}'. You MUST analyze this sales trend against the competitor's historical changes/features. Why are their sales moving that way? Extract exact JSON reasoning into 'sales_reasoning'. NEVER use generic names like 'Competitor X' or 'Competitor Y'; ALWAYS use their EXACT brand names.\n"
+
+    # Step 4: Multi-Matrix Synthesis
     prompt = f"""
 You are SnapTracker, an expert SaaS competitive intelligence analyzer.
-A user has provided info about their product:
+A user provides info about their product:
 {product_info[:1500]}
 
-They want to compare their product against a competitor's website: {competitor_url}
-Here is the text scraped from the competitor's website:
-{competitor_text[:3000]}
+They want to compare their product against MULTIPLE competitors simultaneously: {brand_names}
+Here is the raw data scraped autonomously from their websites right now:
+{combined_competitor_text[:5000]}
 
 TASK:
-1. Compare the two products highlighting strengths and weaknesses.
-2. Identify and explicitly state the absolutely best places online to scrape review data from (e.g. G2, Capterra, Reddit r/SaaS, TrustRadius) for THIS specific comparison. Put these sources in the 'sources_decided' array.
-3. Search your vast training knowledge base, simulating data from those exact customer sources to perform the comparison.
-4. Provide actionable intelligence on how the user's product can win against them.
-5. Provide specific ideas on areas where the user should improve their product to stay competitive.
-6. {shift_prompt}
+1. Provide a massive Multi-Competitor Matrix evaluating your product against EACH of these competitors individually.
+2. {shift_prompt}
+{sales_prompt}
+4. Generate a highly detailed `changes` array containing AT LEAST 5 deep strategic comparisons mapping exactly how the user's product can crush the generic competitor approach.
+5. Generate an `improvements` array containing AT LEAST 7 robust strategic actions the user should take immediately.
+CRITICAL RULE: NEVER refer to any company as "Competitor X", "Competitor Y", "Competitor 1", etc. ALWAYS formulate your responses using the explicit brand names found in the data. Be highly professional and ruthless in your analysis.
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON in this exact format:
 {{
-  "similarity": 45,
-  "sources_decided": ["G2 Reviews", "Reddit SaaS forums"],
-  "historical_shifts": ["They changed their pricing to be contact-sales only", "Removed features from the free tier"],
-  "insight": "Deep AI insight on positioning and G2/Capterra sentiment...",
-  "change_type": "opportunity" or "threat" or "strength" or "weakness",
-  "impact": "low" or "medium" or "high",
+  "aggregate_insight": "A brilliant summary of the entire market comparing the user's product to all competitors...",
+  "sources_decided": {json.dumps(urls_to_scrape) if urls_to_scrape else '["Relying on AI Training Data"]'},
+  "historical_shifts": ["Competitor X changed pricing...", "Competitor Y launched a new feature..."],
+  "sales_reasoning": "We believe your sales dropped because [Actual Brand Name] launched a cheaper tier capturing the mid-market...",
+  "change_type": "opportunity",
+  "impact": "low",
   "confidence": 85,
-  "improvements": [
-    "Add automated workflow feature to match competitor",
-    "Improve onboarding based on competitor's weak G2 ratings"
-  ],
+  "improvements": ["Deeply strategic action plan involving building an integrations marketplace...", "Second heavy strategic optimization..."],
   "changes": [
-    {{"from": "Competitor's approach to feature X", "to": "Your product's better approach"}}
+    {{"from": "[Actual Brand Name] relies on outdated manual integration requiring 10 clicks.", "to": "Your product uses an automated, invisible API sync that saves 5 hours a week."}}
+  ],
+  "matrix": [
+    {{"name": "Competitor 1 Name", "strength": "Their best feature", "weakness": "Their achilles heel", "similarity": 40}},
+    {{"name": "Competitor 2 Name", "strength": "Their best feature", "weakness": "Their achilles heel", "similarity": 60}}
   ]
 }}
 """
 
-    for attempt in range(3):
-        try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=800,
-            )
-            raw_text = response.choices[0].message.content.strip()
-            
-            # Handle potential markdown formatting in response
-            if raw_text.startswith("```json"):
-                raw_text = raw_text.replace("```json", "", 1)
-                if raw_text.endswith("```"):
-                    raw_text = raw_text[:-3]
-                    
-            data = json.loads(raw_text.strip())
-            data["scraped_text"] = competitor_text
-            data["diff_metrics"] = diff_metrics
-            return data
-        except Exception as e:
-            if attempt == 2:
-                return {"error": f"Failed to analyze data: {str(e)}"}
-            time.sleep(2)
+    try:
+        result_json = ask_llm([{"role": "user", "content": prompt}], max_tokens=2500)
+        data = json.loads(result_json)
+        # Ensure fallback keys
+        if "matrix" not in data: data["matrix"] = []
+        if "similarity" not in data: 
+            data["similarity"] = sum([m.get("similarity", 50) for m in data["matrix"]]) / max(len(data["matrix"]), 1) if data["matrix"] else 50
+        if "insight" not in data: data["insight"] = data.get("aggregate_insight", "")
+        
+        data["scraped_text"] = combined_competitor_text
+        data["diff_metrics"] = diff_metrics
+        return data
+    except Exception as e:
+        return {"error": f"Failed to perform multi-matrix analysis: {str(e)}"}
 
 def chat_with_snaptracker(messages: list[dict]):
     try:

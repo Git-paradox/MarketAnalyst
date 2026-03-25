@@ -15,6 +15,34 @@ const impactColors = {
   low: 'bg-green-900/50 text-green-400 border-green-800',
 };
 
+// UI Helpers
+const InfoTooltip = ({ text }) => (
+  <div className="relative group inline-flex ml-2 cursor-help align-middle">
+    <div className="w-3.5 h-3.5 rounded-full border border-neutral-500 text-neutral-500 text-[8px] flex items-center justify-center font-bold font-sans hover:border-lime-500 hover:text-lime-500 transition-colors">i</div>
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2.5 bg-neutral-800 text-[10px] leading-relaxed text-neutral-300 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center shadow-xl border border-neutral-700 font-normal normal-case tracking-normal">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
+    </div>
+  </div>
+);
+
+function SimilarityGraph({ matrix }) {
+   if (!matrix || matrix.length === 0) return null;
+   const MAX_HEIGHT = 160; 
+   return (
+      <div className="flex items-end justify-around space-x-4 h-[250px] mt-8 bg-neutral-900/40 border border-neutral-800 p-6 rounded-2xl w-full relative">
+         <div className="absolute top-5 left-6 text-xs font-bold text-neutral-500 uppercase tracking-widest">Vector Similarity Analysis</div>
+         {matrix.map((comp, idx) => (
+             <div key={idx} className="flex flex-col items-center flex-1 group relative h-full justify-end mt-8">
+                 <div className="text-lime-400 font-bold mb-3 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 text-sm bg-black px-2 py-1 rounded border border-lime-900">{comp.similarity}%</div>
+                 <div className="w-full max-w-[60px] bg-gradient-to-t from-lime-900/30 to-lime-500 rounded-t-sm transition-all shadow-[0_0_15px_rgba(132,204,22,0.1)] group-hover:shadow-[0_0_20px_rgba(132,204,22,0.4)]" style={{ height: `${(comp.similarity / 100) * MAX_HEIGHT}px` }}></div>
+                 <div className="mt-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest truncate w-full text-center border-t border-neutral-800 pt-3">{comp.name}</div>
+             </div>
+         ))}
+      </div>
+   );
+}
+
 // --- TOP LEVEL APP ---
 function App() {
   const [analysisData, setAnalysisData] = useState(null);
@@ -121,6 +149,7 @@ function AuthPage({ setUser }) {
 function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
   const [productInfo, setProductInfo] = useState('');
   const [competitorUrl, setCompetitorUrl] = useState('');
+  const [salesTrend, setSalesTrend] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -133,10 +162,16 @@ function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
     setError(null);
 
     try {
+      const payload = { 
+        product_info: productInfo, 
+        competitor_names: competitorUrl, 
+        sales_trend: salesTrend,
+        user_id: user ? user.id : null 
+      };
       const response = await fetch(`/api/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_info: productInfo, competitor_url: competitorUrl, user_id: user.id })
+          body: JSON.stringify(payload)
       });
       
       let data = await response.json();
@@ -182,14 +217,26 @@ function LandingPage({ setAnalysisData, setChatMessages, user, handleLogout }) {
               placeholder="e.g. We are a fast, scalable CRM built for startups..." value={productInfo} onChange={(e) => setProductInfo(e.target.value)} disabled={loading}
             ></textarea>
           </div>
-          <div>
-            <label className="block text-sm font-semibold tracking-widest text-lime-500 mb-2 uppercase">Competitor URL</label>
-            <input
-              type="url" required
-              className="w-full bg-black border border-neutral-800 rounded-xl py-4 px-4 text-white focus:outline-none focus:border-lime-500 shadow-inner"
-              placeholder="https://competitor.com" value={competitorUrl} onChange={(e) => setCompetitorUrl(e.target.value)} disabled={loading}
-            />
-          </div>
+            <div className="space-y-4">
+              <label className="block text-sm font-semibold tracking-wider text-neutral-400 uppercase">Target Competitors</label>
+              <input
+                type="text"
+                placeholder="e.g. Salesforce, Hubspot, Pipedrive"
+                value={competitorUrl}
+                onChange={(e) => setCompetitorUrl(e.target.value)}
+                className="w-full bg-neutral-900 border-2 border-neutral-800 focus:border-lime-500 rounded-xl px-5 py-4 text-white placeholder-neutral-600 outline-none transition-all focus:shadow-[0_0_15px_rgba(132,204,22,0.3)] font-medium"
+                required
+              />
+            </div>
+            <div className="space-y-4">
+              <label className="block text-sm font-semibold tracking-wider text-neutral-400 uppercase">Recent Sales Trend <span className="text-neutral-600 font-normal normal-case">(Optional)</span></label>
+              <textarea
+                placeholder="e.g. Our sales dropped by 15% this quarter..."
+                value={salesTrend}
+                onChange={(e) => setSalesTrend(e.target.value)}
+                className="w-full h-24 bg-neutral-900 border-2 border-neutral-800 focus:border-lime-500 rounded-xl px-5 py-4 text-white placeholder-neutral-600 outline-none transition-all focus:shadow-[0_0_15px_rgba(132,204,22,0.3)] font-medium resize-none"
+              />
+            </div>
           <button
             type="submit" disabled={loading}
             className="mt-4 w-full bg-lime-500 hover:bg-lime-400 text-black font-extrabold tracking-widest py-4 px-8 rounded-xl transition duration-300 flex items-center justify-center shadow-[0_0_20px_rgba(132,204,22,0.3)] uppercase disabled:opacity-50"
@@ -209,9 +256,12 @@ function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogo
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (!data && location.pathname !== '/dashboard/history') {
-    useEffect(() => { navigate('/', { replace: true }); }, []);
-  }
+  React.useEffect(() => {
+    const isHistory = location.pathname.includes('/dashboard/history');
+    if (!data && !isHistory) {
+        navigate('/', { replace: true });
+    }
+  }, [data, location.pathname, navigate]);
 
   const loadHistoricalAnalysis = (historicalData) => {
       setAnalysisData(historicalData.result);
@@ -219,11 +269,11 @@ function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogo
   };
 
   const tabs = [
-    { name: '🔥 Overview', path: '/dashboard/overview' },
-    { name: '⚔️ Compare', path: '/dashboard/compare' },
-    { name: '🚨 Market Alerts', path: '/dashboard/alerts' },
-    { name: '💬 AI Chat', path: '/dashboard/chat' },
-    { name: '📁 Tracking History', path: '/dashboard/history'}
+    { name: 'Overview', path: '/dashboard/overview' },
+    { name: 'Compare', path: '/dashboard/compare' },
+    { name: 'Market Alerts', path: '/dashboard/alerts' },
+    { name: 'AI Chat', path: '/dashboard/chat' },
+    { name: 'Tracking History', path: '/dashboard/history'}
   ];
 
   return (
@@ -276,6 +326,7 @@ function DashboardLayout({ data, chatMessages, setChatMessages, user, handleLogo
 function HistoryTab({ user, loadAnalysis }) {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [expandedId, setExpandedId] = useState(null);
 
     useEffect(() => {
         fetch(`/api/history/${user.id}`).then(r => r.json()).then(data => {
@@ -290,17 +341,33 @@ function HistoryTab({ user, loadAnalysis }) {
             <div className="grid grid-cols-1 gap-4">
                 {loading ? <div className="text-lime-500 font-bold animate-pulse">Loading intel archives...</div> : 
                  history.length === 0 ? <div className="p-6 bg-black border border-neutral-800 rounded-xl text-neutral-500">No previous comparisons tracked.</div> :
-                 history.map(item => (
-                     <div key={item.id} className="bg-black border border-neutral-800 p-6 rounded-2xl flex items-center justify-between group hover:border-lime-500 transition-colors">
-                         <div>
-                             <h4 className="font-bold text-white text-lg">{item.competitor_url}</h4>
-                             <p className="text-xs text-neutral-500">{new Date(item.timestamp).toLocaleString()}</p>
+                 history.map(item => {
+                     const isExpanded = expandedId === item.id;
+                     const text = item.product_info || "";
+                     const needsExpansion = text.length > 80;
+                     return (
+                         <div key={item.id} className="bg-black border border-neutral-800 p-6 rounded-2xl flex flex-col sm:flex-row gap-6 sm:items-center justify-between group hover:border-lime-500 transition-colors">
+                             <div className="flex-1 min-w-0 pr-4">
+                                 <h4 className="font-bold text-white text-lg">{item.brand_names || "Legacy Matrix"}</h4>
+                                 <div className="text-sm text-neutral-400 mt-1">
+                                     <span className={isExpanded ? "" : "line-clamp-1"}>Vs. {text}</span>
+                                     {needsExpansion && (
+                                         <button 
+                                            onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : item.id); }} 
+                                            className="text-lime-500 hover:text-white text-xs mt-2 font-bold tracking-widest uppercase transition-colors block"
+                                         >
+                                             {isExpanded ? "Show Less" : "Read More"}
+                                         </button>
+                                     )}
+                                 </div>
+                                 <p className="text-xs text-neutral-500 mt-3">{new Date(item.timestamp).toLocaleString()}</p>
+                             </div>
+                             <button onClick={() => loadAnalysis(item)} className="whitespace-nowrap shrink-0 bg-lime-900/20 text-lime-500 border border-lime-900/50 px-5 py-3 rounded-lg font-bold tracking-widest uppercase text-xs hover:bg-lime-500 hover:text-black transition-colors self-start sm:self-center">
+                                 View intel
+                             </button>
                          </div>
-                         <button onClick={() => loadAnalysis(item)} className="bg-lime-900/20 text-lime-500 border border-lime-900/50 px-5 py-2 rounded-lg font-bold tracking-widest uppercase text-xs group-hover:bg-lime-500 group-hover:text-black transition-colors">
-                             View intel
-                         </button>
-                     </div>
-                 ))
+                     );
+                 })
                 }
             </div>
         </div>
@@ -315,7 +382,6 @@ function OverviewTab({ result }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="md:col-span-2 rounded-2xl p-8 bg-black border border-lime-500/50 shadow-[0_0_30px_rgba(132,204,22,0.1)] relative overflow-hidden group">
             <div className="flex items-center space-x-3 mb-5">
-              <span className="text-lime-500 text-3xl">🔥</span>
               <h2 className="text-xl font-extrabold tracking-widest text-lime-400 uppercase">Competitive Intelligence</h2>
             </div>
             <p className="text-xl md:text-2xl leading-relaxed text-white font-medium relative z-10">{result.insight || "No insights generated."}</p>
@@ -325,14 +391,14 @@ function OverviewTab({ result }) {
             <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-6">Metrics</h3>
             <div className="mb-8">
                 <div className="flex justify-between items-end mb-2">
-                <span className="text-neutral-400 font-medium text-sm">Similarity</span>
+                <span className="text-neutral-400 font-medium text-sm">Target Similarity <InfoTooltip text="How closely your product aligns with the targeted competitor base mathematically."/></span>
                 <span className="text-3xl font-bold text-lime-400">{result.similarity}%</span>
                 </div>
                 <div className="w-full bg-neutral-900 rounded-full h-2"><div className="bg-lime-500 h-2 rounded-full shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.similarity || 0}%` }}></div></div>
             </div>
             <div className="mb-4">
                 <div className="flex justify-between items-end mb-2">
-                <span className="text-neutral-400 font-medium text-sm">AI Confidence</span>
+                <span className="text-neutral-400 font-medium text-sm">AI Confidence <InfoTooltip text="The LLM's internal confidence parameter regarding the objective accuracy of this entire matrix."/></span>
                 <span className="text-3xl font-bold text-lime-400">{result.confidence}%</span>
                 </div>
                 <div className="w-full bg-neutral-900 rounded-full h-2"><div className="bg-lime-500 h-2 rounded-full shadow-[0_0_10px_rgba(132,204,22,0.5)]" style={{ width: `${result.confidence || 0}%` }}></div></div>
@@ -352,6 +418,35 @@ function OverviewTab({ result }) {
             </div>
         </div>
       </div>
+
+      <SimilarityGraph matrix={result.matrix} />
+
+      {/* Competitor Matrix Details */}
+      {result.matrix && result.matrix.length > 0 && (
+          <div className="bg-black rounded-2xl p-6 border border-neutral-800 mt-8">
+              <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-wider">Competitive Matrix</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {result.matrix.map((comp, idx) => (
+                    <div key={idx} className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl transition-all hover:border-lime-500/50">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-lg font-bold text-white truncate max-w-[70%]">{comp.name}</h4>
+                            <span className="bg-black text-lime-400 text-xs font-bold px-2 py-1 rounded-md border border-neutral-800">{comp.similarity}% Vector</span>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="p-3 bg-neutral-950 border border-neutral-800 rounded-lg">
+                                <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-widest flex items-center mb-1">Their Strategy (Strength)</span>
+                                <p className="text-sm text-neutral-300">{comp.strength}</p>
+                            </div>
+                            <div className="p-3 bg-lime-950/20 border border-lime-900/30 rounded-lg">
+                                <span className="text-[10px] uppercase font-bold text-lime-500 tracking-widest flex items-center mb-1">Their Vulnerability (Weakness)</span>
+                                <p className="text-sm text-neutral-300">{comp.weakness}</p>
+                            </div>
+                        </div>
+                    </div>
+                 ))}
+              </div>
+          </div>
+      )}
     </div>
   );
 }
@@ -367,7 +462,6 @@ function AlertsTab({ result }) {
       
       {!diffs && (
         <div className="p-8 bg-neutral-900 border border-neutral-800 rounded-2xl text-center">
-            <span className="text-4xl block mb-4">🕵️</span>
             <h3 className="text-xl font-bold text-white mb-2">First Track Record Established</h3>
             <p className="text-neutral-400 max-w-lg mx-auto">We have successfully taken a mathematical snapshot of this competitor. Track them again in the future to see exactly what features, pricing, and words they change on their website.</p>
         </div>
@@ -376,29 +470,29 @@ function AlertsTab({ result }) {
       {diffs && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-black rounded-2xl p-6 border border-neutral-800 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
-            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-4">Page Volatility</h3>
+            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-4">Page Volatility <InfoTooltip text="Total percentage of the competitor's raw frontend syntax that has changed since the last fetch." /></h3>
             <div className="text-5xl font-extrabold text-lime-400">{diffs.volatility}%</div>
             <p className="text-xs mt-2 text-neutral-400">Percentage of words altered since last snapshot</p>
         </div>
         <div className="bg-black rounded-2xl p-6 border border-lime-900/30">
-            <h3 className="text-xs font-bold text-lime-500 uppercase tracking-widest mb-4">Content Insertions</h3>
+            <h3 className="text-xs font-bold text-lime-500 uppercase tracking-widest mb-4">Content Insertions <InfoTooltip text="Exact metric of purely net-new language added to their HTML body text." /></h3>
             <div className="text-5xl font-extrabold text-lime-400">+{diffs.words_added}</div>
             <p className="text-xs mt-2 text-lime-600/50">New words pushed to production</p>
         </div>
-        <div className="bg-black rounded-2xl p-6 border border-red-900/30">
-            <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4">Content Deletions</h3>
-            <div className="text-5xl font-extrabold text-red-400">-{diffs.words_removed}</div>
-            <p className="text-xs mt-2 text-red-600/50">Words completely removed</p>
+        <div className="bg-black rounded-2xl p-6 border border-neutral-800">
+            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-4">Content Deletions <InfoTooltip text="Exact metric of legacy language deleted from their landing pages." /></h3>
+            <div className="text-5xl font-extrabold text-neutral-400">-{diffs.words_removed}</div>
+            <p className="text-xs mt-2 text-neutral-600">Words completely removed</p>
         </div>
       </div>
       )}
 
       {shifts.length > 0 && (
           <div className="bg-black rounded-2xl p-6 border border-neutral-800 mt-8">
-            <h3 className="text-lg font-bold text-white mb-6 flex items-center"><span className="text-lime-500 mr-3">⚡</span> Artificial Intelligence Detected Shifts</h3>
+            <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wider">Artificial Intelligence Detected Shifts</h3>
             <div className="space-y-4">
             {shifts.map((shift, idx) => (
-                <div key={idx} className="bg-neutral-900 p-5 rounded-xl border-l-4 border-lime-500 text-neutral-200 font-medium leading-relaxed">
+                <div key={idx} className="bg-neutral-900 p-5 rounded-xl border-l-4 border-lime-500 text-neutral-200 font-medium leading-relaxed shadow-inner">
                     {shift}
                 </div>
             ))}
@@ -413,27 +507,47 @@ function AlertsTab({ result }) {
 function CompareTab({ result }) {
   return (
     <div className="space-y-8 pb-10">
-      <h2 className="text-3xl font-extrabold text-white mb-2">Strategy & Comparison</h2>
-      <div className="bg-black rounded-2xl p-6 border border-neutral-800">
-        {result.changes?.map((change, idx) => (
-            <div key={idx} className="bg-black rounded-2xl p-6 border border-neutral-800 hover:border-lime-500/30 transition-colors grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="p-4 bg-neutral-900 rounded-xl border border-neutral-800">
-                    <span className="px-2 py-1 rounded bg-red-900/20 text-red-500 font-extrabold text-xs">COMPETITOR</span>
-                    <p className="mt-2 text-neutral-300">{change.from}</p>
-                </div>
-                <div className="p-4 bg-lime-900/10 rounded-xl border border-lime-900/30">
-                    <span className="px-2 py-1 rounded bg-lime-900/20 text-lime-500 font-extrabold text-xs">YOUR PRODUCT</span>
-                    <p className="mt-2 text-white">{change.to}</p>
-                </div>
-            </div>
+      <h2 className="text-3xl font-extrabold text-white mb-8">Deep Strategy & Comparison</h2>
+
+      {result.sales_reasoning && (
+          <div className="bg-lime-950/20 rounded-2xl p-8 border border-lime-900/40 shadow-[0_0_30px_rgba(132,204,22,0.05)]">
+              <h3 className="text-xl font-bold text-lime-400 mb-4 uppercase tracking-wider">
+                  AI Sales Correlation Engine
+              </h3>
+              <p className="text-lime-50 text-lg leading-relaxed font-medium">{result.sales_reasoning}</p>
+          </div>
+      )}
+
+      <div className="space-y-6">
+        {result.changes.map((change, idx) => (
+           <div key={idx} className="bg-neutral-900 border border-neutral-800 p-6 xl:p-8 rounded-2xl flex flex-col md:flex-row gap-6 items-center transition-all hover:border-neutral-600">
+              <div className="flex-1 w-full bg-black/40 p-5 rounded-xl border border-neutral-800/50">
+                 <span className="text-xs uppercase font-extrabold text-neutral-500 tracking-widest block mb-3">Competitor Approach</span>
+                 <p className="text-sm text-neutral-300 leading-relaxed">{change.from}</p>
+              </div>
+              <div className="hidden md:flex flex-col items-center justify-center text-neutral-600">
+                 <svg className="w-8 h-8 opacity-50 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                 <span className="text-[10px] font-bold tracking-widest uppercase">Pivot</span>
+              </div>
+              <div className="flex-1 w-full bg-lime-900/10 p-5 rounded-xl border border-lime-900/30">
+                 <span className="text-xs uppercase font-extrabold text-lime-500 tracking-widest block mb-3">Your Strategic Edge</span>
+                 <p className="text-sm text-white font-medium leading-relaxed">{change.to}</p>
+              </div>
+           </div>
         ))}
       </div>
-      {result.improvements?.map((idea, idx) => (
-         <div key={idx} className="flex bg-black rounded-xl p-6 border border-neutral-800 hover:border-lime-500/20">
-             <span className="text-lime-500 mr-4 text-xl">✦</span>
-             <p className="text-neutral-200 text-lg">{idea}</p>
+
+      {result.improvements && result.improvements.length > 0 && (
+         <div className="pt-4 space-y-4">
+            <h3 className="text-xl font-bold text-white mb-4 tracking-wider uppercase">Strategic Improvements</h3>
+            {result.improvements.map((idea, idx) => (
+               <div key={idx} className="flex bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-lime-500/30 transition-colors shadow-[0_0_15px_rgba(132,204,22,0.05)]">
+                   <div className="w-2 h-2 rounded-full bg-lime-500 mr-4 mt-2 shrink-0"></div>
+                   <p className="text-neutral-200 text-base leading-relaxed font-medium">{idea}</p>
+               </div>
+            ))}
          </div>
-      ))}
+      )}
     </div>
   );
 }
